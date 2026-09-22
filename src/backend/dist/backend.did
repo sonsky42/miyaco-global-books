@@ -1,0 +1,534 @@
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   company: text;
+   email: text;
+   name: text;
+   phone: text;
+ };
+type UserActivityItem = 
+ record {
+   actionCount: nat;
+   lastActionDate: int;
+   principalText: text;
+   userName: text;
+ };
+type TransactionErrorRate = 
+ record {
+   errorRate: float64;
+   totalApproved: nat;
+   totalRejected: nat;
+   totalSubmitted: nat;
+ };
+type Transaction = 
+ record {
+   amount: float64;
+   approvalProcessed: bool;
+   approved: bool;
+   bookId: text;
+   brand: text;
+   cartons: nat;
+   costPriceAtSale: float64;
+   createdBy: principal;
+   currency: text;
+   customerName: text;
+   date: Time;
+   email: text;
+   id: text;
+   itemName: text;
+   notes: text;
+   paymentMethod: text;
+   phone: text;
+   pricePerCarton: float64;
+   productType: text;
+   sellingPriceAtSale: float64;
+   typeSubtype: text;
+   unitsPerCarton: nat;
+ };
+type TopCustomerByProfit = 
+ record {
+   customerName: text;
+   grossProfit: float64;
+   totalRevenue: float64;
+ };
+type Time = int;
+type SystemSettings = 
+ record {
+   companyInfo: text;
+   currencyRounding: nat;
+   exchangeRate: float64;
+   multiStore: bool;
+   taxRate: float64;
+ };
+type StockTurnoverItem = 
+ record {
+   itemName: text;
+   timesRestocked: nat;
+   turnoverRate: float64;
+ };
+type ScheduledSummary = 
+ record {
+   bookId: text;
+   generatedAt: int;
+   grossMargin: float64;
+   id: text;
+   periodLabel: text;
+   topCustomerNames: vec text;
+   topItemNames: vec text;
+   totalExpenses: float64;
+   totalInflows: float64;
+   transactionCount: nat;
+ };
+type SalesVelocityItem = 
+ record {
+   avgUnitsPerDay: float64;
+   itemName: text;
+   totalUnits: nat;
+ };
+type SalesTrendPoint = 
+ record {
+   cost: float64;
+   period: text;
+   profit: float64;
+   revenue: float64;
+ };
+type RepeatVsNewItem = 
+ record {
+   newCount: nat;
+   period: text;
+   repeatCount: nat;
+   repeatPct: float64;
+ };
+type ProfitByProductItem = 
+ record {
+   grossProfit: float64;
+   itemName: text;
+   margin: float64;
+   units: nat;
+ };
+type PeakPeriod = 
+ record {
+   period: text;
+   rank: nat;
+   volume: float64;
+ };
+type MutResult = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type MarginTrendPoint = 
+ record {
+   grossMargin: float64;
+   grossMarginPct: float64;
+   period: text;
+ };
+type Location = 
+ record {
+   bookId: text;
+   createdAt: Time;
+   createdBy: principal;
+   id: text;
+   name: text;
+ };
+type JoinRequestResult = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type JoinRequest = 
+ record {
+   bookId: text;
+   requestedAt: Time;
+   status: ApprovalStatus;
+   user: principal;
+ };
+type InventoryTransfer = 
+ record {
+   bookId: text;
+   fromLocationId: text;
+   id: text;
+   itemId: text;
+   itemName: text;
+   quantity: nat;
+   toLocationId: text;
+   transferredAt: Time;
+   transferredBy: principal;
+   unit: text;
+ };
+type InventoryItem = 
+ record {
+   approved: bool;
+   bookId: text;
+   brand: text;
+   costPrice: float64;
+   createdAt: Time;
+   highestEverQuantity: nat;
+   id: text;
+   locationId: text;
+   name: text;
+   productType: text;
+   quantity: nat;
+   sellingPrice: float64;
+   supplier: text;
+   unitsPerCarton: nat;
+   variants: vec text;
+ };
+type ForecastPoint = 
+ record {
+   period: text;
+   projected: float64;
+ };
+type ExpenseByCategoryItem = 
+ record {
+   amount: float64;
+   category: text;
+   pct: float64;
+ };
+type Expense = 
+ record {
+   amount: float64;
+   approved: bool;
+   bookId: text;
+   category: text;
+   createdBy: principal;
+   date: Time;
+   description: text;
+   id: text;
+ };
+type DraftPurchaseOrder = 
+ record {
+   bookId: text;
+   currentQuantity: nat;
+   id: text;
+   inventoryItemId: text;
+   itemName: text;
+   status: text;
+   suggestedQuantity: nat;
+   triggeredAt: int;
+ };
+type DeadStockItem = 
+ record {
+   currentQty: nat;
+   daysSinceLastSale: nat;
+   itemName: text;
+ };
+type CustomerStatement = 
+ record {
+   currentBalance: float64;
+   customerName: text;
+   totalPayments: float64;
+   totalPurchases: float64;
+   transactions: vec Transaction;
+ };
+type CustomerCLVItem = 
+ record {
+   customerName: text;
+   firstTransactionDate: int;
+   totalRevenue: float64;
+   totalTransactions: nat;
+ };
+type Customer = 
+ record {
+   bookId: text;
+   brand: text;
+   createdAt: Time;
+   email: text;
+   id: text;
+   lastTransactionDate: Time;
+   name: text;
+   outstandingDebt: float64;
+   phone: text;
+   totalSpent: float64;
+   transactionCount: nat;
+   transactions: vec text;
+ };
+type CogsItem = 
+ record {
+   grossProfit: float64;
+   itemName: text;
+   totalCost: float64;
+   totalRevenue: float64;
+ };
+type BreakEven = 
+ record {
+   currentRevenue: float64;
+   requiredRevenue: float64;
+   surplus: float64;
+   totalExpenses: float64;
+ };
+type BranchComparisonItem = 
+ record {
+   locationName: text;
+   salesVolume: float64;
+   totalItems: nat;
+   totalValue: float64;
+ };
+type BookSettings = 
+ record {
+   baseCurrency: text;
+   bookId: text;
+   exchangeRate: float64;
+   hideCostPricesFromNonAdmins: bool;
+   lastSummaryDate: int;
+   scheduledSummaryFrequency: text;
+ };
+type AuditLogEntry = 
+ record {
+   action: text;
+   actorName: text;
+   actorPrincipal: text;
+   bookId: text;
+   details: text;
+   id: text;
+   targetId: text;
+   targetType: text;
+   timestamp: int;
+ };
+type ApprovalTurnaround = 
+ record {
+   avgHours: float64;
+   fastestHours: float64;
+   slowestHours: float64;
+   totalApproved: nat;
+   totalRejected: nat;
+ };
+type ApprovalStatus = 
+ variant {
+   approved;
+   pending;
+   rejected;
+ };
+type AnalyticsExtended = 
+ record {
+   approvalTurnaround: ApprovalTurnaround;
+   branchComparison: vec BranchComparisonItem;
+   breakEven: BreakEven;
+   cogsBreakdown: vec CogsItem;
+   customerCLV: vec CustomerCLVItem;
+   deadStock: vec DeadStockItem;
+   debtAging: vec AgingBucket;
+   expenseByCategory: vec ExpenseByCategoryItem;
+   marginTrend: vec MarginTrendPoint;
+   peakPeriods: vec PeakPeriod;
+   profitByProduct: vec ProfitByProductItem;
+   repeatVsNewRatio: vec RepeatVsNewItem;
+   revenueForecast: vec ForecastPoint;
+   salesTrend: vec SalesTrendPoint;
+   salesVelocity: vec SalesVelocityItem;
+   stockTurnover: vec StockTurnoverItem;
+   topCustomersByProfit: vec TopCustomerByProfit;
+   transactionErrorRate: TransactionErrorRate;
+   userActivity: vec UserActivityItem;
+ };
+type AgingBucket = 
+ record {
+   bucketLabel: text;
+   count: nat;
+   totalAmount: float64;
+   transactions: vec Transaction;
+ };
+type AccountingBook = 
+ record {
+   admin: principal;
+   adminMembers: vec principal;
+   createdAt: Time;
+   id: text;
+   members: vec principal;
+   name: text;
+ };
+service : {
+  addCustomer: (customer: Customer) -> (MutResult);
+  addExpense: (expense: Expense) -> (MutResult);
+  addInventoryItem: (item: InventoryItem) -> (MutResult);
+  addTransaction: (transaction: Transaction) -> (MutResult);
+  approveExpense: (expenseId: text) -> (MutResult);
+  approveInventoryItem: (itemId: text) -> (MutResult);
+  approveJoinRequest: (requestId: text, makeAdmin: bool) ->
+   (JoinRequestResult);
+  approveTransaction: (transactionId: text) -> (MutResult);
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  changeUserRole: (bookId: text, principalText: text, makeAdmin: bool) ->
+   (JoinRequestResult);
+  createAccountingBook: (name: text) -> (text);
+  createLocation: (bookId: text, name: text) -> (MutResult);
+  deleteBook: (bookId: text) -> (JoinRequestResult);
+  deleteLocation: (bookId: text, locationId: text) -> (MutResult);
+  deleteTransaction: (transactionId: text) -> (MutResult);
+  dismissDraftPurchaseOrder: (bookId: text, orderId: text) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  getAgingReport: (bookId: text) ->
+   (variant {
+      err: text;
+      ok: vec AgingBucket;
+    }) query;
+  getAllBooks: () -> (vec AccountingBook) query;
+  getAllJoinRequests: () -> (vec JoinRequest) query;
+  getAnalyticsExtended: (bookId: text, timeFilter: text) ->
+   (variant {
+      err: text;
+      ok: AnalyticsExtended;
+    }) query;
+  getAuditLog: (bookId: text) ->
+   (variant {
+      err: text;
+      ok: vec AuditLogEntry;
+    }) query;
+  getBookMembers: (bookId: text) -> (vec principal) query;
+  getBookMembersWithNames: (bookId: text) ->
+   (vec record {
+          principal;
+          text;
+          bool;
+        }) query;
+  getBookSettings: (bookId: text) ->
+   (variant {
+      err: text;
+      ok: BookSettings;
+    }) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCustomerNames: (bookId: text) -> (vec text) query;
+  getCustomerStatement: (bookId: text, customerName: text) ->
+   (variant {
+      err: text;
+      ok: CustomerStatement;
+    }) query;
+  getCustomers: (bookId: text) -> (vec Customer) query;
+  getDashboardMetrics: (bookId: text) ->
+   (record {
+      customersWithDebt: nat;
+      grossMargin: int;
+      inventoryItems: nat;
+      lowStockCount: nat;
+      lowStockItems: vec record {
+                           text;
+                           nat;
+                           nat;
+                         };
+      pendingCount: nat;
+      recentTransactions: vec Transaction;
+      totalCustomers: nat;
+      totalInflows: int;
+      totalOutstandingDebt: int;
+    }) query;
+  getDraftPurchaseOrders: (bookId: text) ->
+   (variant {
+      err: text;
+      ok: vec DraftPurchaseOrder;
+    }) query;
+  getExpenses: (bookId: text) -> (vec Expense) query;
+  getGrossMarginByPeriod: (bookId: text, startTime: int, endTime: int) ->
+   (float64) query;
+  getInventory: (bookId: text) -> (vec InventoryItem) query;
+  getInventoryByLocation: (bookId: text, locationId: text) ->
+   (vec InventoryItem) query;
+  getInventoryItemNames: (bookId: text) -> (vec text) query;
+  getInventoryTransfers: (bookId: text) -> (vec InventoryTransfer) query;
+  getJoinRequestStatus: (user: principal, bookId: text) ->
+   (opt ApprovalStatus) query;
+  getLocations: (bookId: text) -> (vec Location) query;
+  getLowStockAlerts: (bookId: text) -> (vec InventoryItem) query;
+  getOrGenerateScheduledSummary: (bookId: text) ->
+   (variant {
+      err: text;
+      ok: ScheduledSummary;
+    });
+  getOutstandingCredits: (bookId: text) ->
+   (record {
+      customersWithDebt: nat;
+      outstandingCredits:
+       vec
+        record {
+          amountPaid: float64;
+          balance: float64;
+          debtor: text;
+          paybackDate: Time;
+          totalOwed: float64;
+        };
+      totalOutstanding: float64;
+    }) query;
+  getPendingExpenses: (bookId: text) -> (vec Expense) query;
+  getPendingInventory: (bookId: text) -> (vec InventoryItem) query;
+  getPendingJoinRequests: () -> (vec JoinRequest) query;
+  getPendingTransactions: (bookId: text) -> (vec Transaction) query;
+  getRecentTransactions: (bookId: text) -> (vec Transaction) query;
+  getSystemSettings: () -> (opt SystemSettings) query;
+  getTopItemsAndCustomers: (bookId: text) ->
+   (record {
+      topCustomers:
+       vec record {
+             lastSaleDate: Time;
+             name: text;
+             totalSpent: float64;
+           };
+      topItems:
+       vec
+        record {
+          brand: text;
+          grossProfit: float64;
+          sku: text;
+          totalUnitsSold: nat;
+        };
+    }) query;
+  getTransactionStatistics: (bookId: text) ->
+   (record {
+      creditPurchases: float64;
+      creditSales: float64;
+      purchases: float64;
+      sales: float64;
+    }) query;
+  getTransactions: (bookId: text) -> (vec Transaction) query;
+  getTransactionsByType: (bookId: text, transactionType: text) ->
+   (vec Transaction) query;
+  getUserBooks: () -> (vec AccountingBook) query;
+  getUserDisplayName: (user: principal) -> (text) query;
+  getUserJoinRequests: () -> (vec record {
+                                    text;
+                                    ApprovalStatus;
+                                  }) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  initializeAccessControl: () -> ();
+  isCallerAdmin: () -> (bool) query;
+  isCallerApproved: () -> (bool) query;
+  isCallerBookAdmin: (bookId: text) -> (bool) query;
+  isCallerBookMember: (bookId: text) -> (bool) query;
+  isCallerPermanentAdmin: (bookId: text) -> (bool) query;
+  listApprovals: () -> (vec record {
+                              principal;
+                              ApprovalStatus;
+                            }) query;
+  rejectExpense: (expenseId: text) -> (MutResult);
+  rejectInventoryItem: (itemId: text) -> (MutResult);
+  rejectJoinRequest: (requestId: text) -> (JoinRequestResult);
+  rejectTransaction: (transactionId: text) -> (MutResult);
+  removeSelfFromBook: (bookId: text) -> (JoinRequestResult);
+  removeUserFromBook: (bookId: text, principalText: text) ->
+   (JoinRequestResult);
+  requestApproval: () -> ();
+  requestJoinBook: (bookId: text) -> (JoinRequestResult);
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  searchAccountingBooks: (name: text) -> (vec AccountingBook) query;
+  searchCustomers: (bookId: text, searchTerm: text) -> (vec Customer) query;
+  searchInventory: (bookId: text, searchTerm: text) ->
+   (vec InventoryItem) query;
+  setApproval: (user: principal, status: ApprovalStatus) -> ();
+  transferInventory: (bookId: text, itemId: text, fromLocationId: text,
+   toLocationId: text, quantity: nat, unit: text) -> (MutResult);
+  updateBookSettings: (bookId: text, settings: BookSettings) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  updateCustomer: (customer: Customer) -> (MutResult);
+  updateInventoryItem: (item: InventoryItem) -> (MutResult);
+  updateSystemSettings: (settings: SystemSettings) -> ();
+}

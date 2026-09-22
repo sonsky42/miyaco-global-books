@@ -1,0 +1,24 @@
+{
+  "overview": "Miyaco Global Books is a multi-user business management platform for tracking sales, purchases, inventory, customers, and gross margin in real time.",
+  "features": [
+    "Track inventory with cartons, units per carton, and cost price",
+    "Record sales, credit sales, purchases, and credit purchases with full quantity data",
+    "Autocomplete item names from existing inventory when recording transactions",
+    "Automatically deduct sold items from inventory in real time",
+    "Validate stock availability before allowing sales",
+    "Live gross margin and total inflow dashboard updates after every transaction",
+    "Multi-location inventory with transfer between branches",
+    "Customer auto-profiling with debt tracking",
+    "Admin approval workflow for non-admin transactions"
+  ],
+  "category": "business-management",
+  "tags": [
+    "inventory",
+    "accounting",
+    "transactions",
+    "naira",
+    "multi-user",
+    "pwa"
+  ],
+  "last_updated": "2026-06-07T12:05:08.538Z"
+}

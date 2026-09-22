@@ -1,0 +1,96 @@
+
+## Testing PWA Installation
+
+### Desktop (Chrome/Edge)
+
+1. Open the application in Chrome or Edge
+2. Look for the install icon in the address bar (⊕ or computer icon)
+3. Click it and follow the prompts
+4. The app should open in a standalone window
+
+### Android
+
+1. Open the application in Chrome
+2. Tap the menu (⋮) in the top-right
+3. Select "Add to Home Screen" or "Install App"
+4. Follow the prompts
+5. The app icon should appear on your home screen
+
+### iOS (Safari)
+
+1. Open the application in Safari
+2. Tap the Share button (square with arrow)
+3. Scroll down and tap "Add to Home Screen"
+4. Customize the name if desired
+5. Tap "Add"
+6. The app icon should appear on your home screen
+
+## Verification Checklist
+
+- [ ] App installs successfully on desktop
+- [ ] App installs successfully on Android
+- [ ] App installs successfully on iOS
+- [ ] App launches in standalone mode (no browser UI)
+- [ ] App icon displays correctly
+- [ ] Splash screen shows on launch (mobile)
+- [ ] App works offline (basic functionality)
+- [ ] Service worker caches assets properly
+- [ ] Theme color matches app design
+
+## PWA Features Implemented
+
+### Manifest.json
+- App name: "Miyaco Global Books"
+- Short name: "Miyaco Books"
+- Theme color: #2563eb (blue)
+- Background color: #ffffff (white)
+- Display mode: standalone
+- Icons in all required sizes
+
+### Service Worker
+- Caches core assets on install
+- Network-first strategy for navigation
+- Cache-first strategy for static assets
+- Runtime caching for dynamic content
+- Offline fallback support
+
+### Install Prompt
+- Custom install prompt component
+- Shows on first visit (if not dismissed)
+- Remembers user preference
+- Works on supported browsers
+
+## Troubleshooting
+
+### Icons Not Showing
+- Verify icon files exist in `public/assets/`
+- Check browser console for 404 errors
+- Clear browser cache and reload
+
+### Service Worker Not Registering
+- Check browser console for errors
+- Ensure HTTPS is enabled (required for PWA)
+- Verify `sw.js` is accessible at `/sw.js`
+
+### Install Prompt Not Appearing
+- PWA criteria must be met (manifest, service worker, HTTPS)
+- Some browsers don't show prompt immediately
+- User may have dismissed it previously
+
+### Offline Mode Not Working
+- Check service worker is active in DevTools
+- Verify assets are cached (Application > Cache Storage)
+- Test with DevTools offline mode
+
+## Browser Support
+
+- ✅ Chrome/Edge (Desktop & Mobile) - Full support
+- ✅ Safari (iOS) - Manual installation via Share menu
+- ✅ Firefox (Desktop & Mobile) - Full support
+- ⚠️ Safari (macOS) - Limited support (no install prompt)
+
+## Additional Resources
+
+- [PWA Checklist](https://web.dev/pwa-checklist/)
+- [Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
+- [Web App Manifest](https://developer.mozilla.org/en-US/docs/Web/Manifest)
