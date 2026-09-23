@@ -8,6 +8,7 @@
     "build": "vite build && pnpm copy:env",
     "copy:env": "cp env.json dist/",
     "typecheck": "tsc --noEmit",
+    "test:storage": "node tests/storage-dependency.mjs",
     "check": "biome check src",
     "fix": "biome check --write src"
   },
@@ -32,6 +33,7 @@
   },
   "dependencies": {
     "@caffeineai/core-infrastructure": "^0.2.1",
+    "@caffeineai/object-storage": "0.1.1",
     "@dfinity/agent": "~3.3.0",
     "@dfinity/auth-client": "~3.3.0",
     "@dfinity/candid": "~3.3.0",
