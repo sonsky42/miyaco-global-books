@@ -422,7 +422,7 @@ function ItemAutocomplete({
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
-          if (!e.target.value.trim()) onSelectItem(null);
+          onSelectItem(inventoryItems.find((item) => item.name.toLowerCase() === e.target.value.trim().toLowerCase()) ?? null);
         }}
         onFocus={() => setOpen(true)}
         placeholder="Type item name…"
@@ -541,7 +541,9 @@ function TransactionForm({
   // Stock validation for sales / credit sales
   const isSaleType =
     transactionType === "Sales" || transactionType === "Credit Sales";
-  const availableCartons = selectedItem ? Number(selectedItem.quantity) : 0;
+  const availableCartons = selectedItem
+    ? Math.floor(Number(selectedItem.quantity) / Math.max(1, unitsPerCartonNum))
+    : 0;
   const stockError =
     isSaleType && cartonsNum > 0 && cartonsNum > availableCartons
       ? `Only ${availableCartons} cartons available`
@@ -561,7 +563,7 @@ function TransactionForm({
     const costPriceAtSale = selectedItem ? Number(selectedItem.costPrice) : 0;
 
     const transaction: Transaction = {
-      id: `tx-${Date.now()}`,
+      id: `tx-${crypto.randomUUID()}`,
       date: BigInt(date.getTime() * 1_000_000),
       customerName: formData.customerName,
       phone: formData.phone,
@@ -591,6 +593,7 @@ function TransactionForm({
         toast.success(result.ok || "Transaction submitted for approval");
       } else {
         toast.error(result.err);
+        return;
       }
       onSuccess();
       setFormData({

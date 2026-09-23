@@ -1472,7 +1472,7 @@ export default function AnalyticsPage({ bookId }: AnalyticsPageProps) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("thisMonth");
   const [activeTab, setActiveTab] = useState("overview");
 
-  const { data: isAdmin, isLoading: adminLoading } = useIsCallerAdmin();
+  const { data: isAdmin, isLoading: adminLoading } = useIsCallerAdmin(bookId);
   const {
     data: analyticsData,
     isLoading: analyticsLoading,

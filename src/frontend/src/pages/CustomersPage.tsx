@@ -36,6 +36,9 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import type { AgingBucket, Customer, Transaction } from "../backend";
 import {
   useGetAgingReport,
@@ -43,6 +46,7 @@ import {
   useGetCustomers,
   useGetDashboardMetrics,
   useGetOutstandingCredits,
+  useIsCallerAdmin,
 } from "../hooks/useQueries";
 
 interface CustomersPageProps {
@@ -69,8 +73,8 @@ function fmtDate(timestamp: bigint) {
 }
 
 function txTypeBadge(typeSubtype: string) {
-  const t = (typeSubtype ?? "").toLowerCase();
-  if (t.includes("credit_sale") || t.includes("credit-sale"))
+  const t = (typeSubtype ?? "").toLowerCase().replace(/[_-]/g, " ");
+  if (t.includes("credit sale"))
     return (
       <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
         Credit Sale
@@ -82,7 +86,7 @@ function txTypeBadge(typeSubtype: string) {
         Sale
       </Badge>
     );
-  if (t.includes("credit_purchase") || t.includes("credit-purchase"))
+  if (t.includes("credit purchase"))
     return (
       <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-xs">
         Credit Purchase
@@ -102,11 +106,11 @@ function txTypeBadge(typeSubtype: string) {
 }
 
 function txRowBg(typeSubtype: string) {
-  const t = (typeSubtype ?? "").toLowerCase();
-  if (t.includes("credit_sale") || t.includes("credit-sale"))
+  const t = (typeSubtype ?? "").toLowerCase().replace(/[_-]/g, " ");
+  if (t.includes("credit sale"))
     return "bg-amber-50/60";
   if (t.includes("sale")) return "bg-emerald-50/60";
-  if (t.includes("credit_purchase") || t.includes("credit-purchase"))
+  if (t.includes("credit purchase"))
     return "bg-purple-50/60";
   if (t.includes("purchase")) return "bg-blue-50/60";
   return "";
@@ -136,13 +140,11 @@ function CustomerStatementModal({
     );
     let running = 0;
     return sorted.map((tx) => {
-      const t = (tx.typeSubtype ?? "").toLowerCase();
-      if (t.includes("credit_sale") || t.includes("credit-sale")) {
+      const t = (tx.typeSubtype ?? "").toLowerCase().replace(/[_-]/g, " ");
+      if (t.includes("credit sale")) {
         running += tx.amount;
       } else if (t.includes("sale")) {
         running += 0; // paid immediately
-      } else if (t.includes("purchase")) {
-        running -= tx.amount;
       }
       return { ...tx, runningBalance: running };
     });
@@ -566,6 +568,30 @@ function CustomerRow({
   onViewStatement: (name: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { actor } = useActor();
+  const { data: isAdmin } = useIsCallerAdmin(customer.bookId);
+  const { data: photo = "" } = useQuery({
+    queryKey: ["customerPhoto", customer.bookId, customer.name],
+    queryFn: () => actor!.getCustomerPhoto(customer.bookId, customer.name),
+    enabled: !!actor,
+  });
+  const savePhoto = useMutation({
+    mutationFn: async (file: File) => {
+      if (!actor) throw new Error("Connection unavailable");
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 200_000) {
+        throw new Error("Choose a JPEG, PNG or WebP photo smaller than 200 KB");
+      }
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read photo"));
+        reader.readAsDataURL(file);
+      });
+      await actor.setCustomerPhoto(customer.bookId, customer.name, data);
+    },
+    onError: (error) => toast.error(error.message),
+    onSuccess: () => toast.success("Customer photo saved"),
+  });
   const hasDebt = customer.outstandingDebt > 0;
 
   return (
@@ -581,6 +607,7 @@ function CustomerRow({
           aria-expanded={expanded}
         >
           <div className="flex items-center gap-2 flex-wrap mb-1">
+            {photo && <img src={photo} alt={`${customer.name}'s profile`} width={44} height={44} className="h-11 w-11 rounded-full object-cover" />}
             <span className="font-semibold truncate">{customer.name}</span>
             {hasDebt && (
               <Badge variant="destructive" className="text-xs shrink-0">
@@ -646,6 +673,15 @@ function CustomerRow({
 
       {expanded && (
         <div className="px-4 pb-4 border-t bg-muted/20">
+          {isAdmin && <label className="block pt-4 text-sm">
+            Customer photo (JPEG, PNG or WebP, maximum 200 KB)
+            <Input type="file" accept="image/jpeg,image/png,image/webp" disabled={savePhoto.isPending} onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) savePhoto.mutate(file);
+              event.target.value = "";
+            }} />
+            {savePhoto.isPending && <span role="status">Saving photo…</span>}
+          </label>}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 text-sm">
             <div>
               <p className="text-muted-foreground text-xs mb-1">Total Spent</p>

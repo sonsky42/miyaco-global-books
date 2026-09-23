@@ -10,6 +10,7 @@ import Runtime "mo:core/Runtime";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import Option "mo:core/Option";
+import Iter "mo:core/Iter";
 
 
 
@@ -288,10 +289,56 @@ actor MiyacoGlobalBooks {
   var bookSettings = Map.empty<Text, BookSettings>();
   var draftPurchaseOrders = Map.empty<Text, [DraftPurchaseOrder]>();
   var scheduledSummaries = Map.empty<Text, [ScheduledSummary]>();
+  var customerPhotos = Map.empty<Text, Text>();
+
+  // Rebuild totals from posted sales so profiles remain consistent with the ledger.
+  func customerLedger(bookId : Text) : [Customer] {
+    let result = Map.empty<Text, Customer>();
+    for (c in customers.values()) {
+      if (c.bookId == bookId) {
+        result.add(Text.trim(c.name, #char ' ').toLower(), { c with transactions = []; totalSpent = 0.0; outstandingDebt = 0.0; transactionCount = 0; lastTransactionDate = 0 });
+      };
+    };
+    for (tx in transactions.values()) {
+      if (tx.bookId == bookId and tx.approved and (tx.typeSubtype == "Sales" or tx.typeSubtype == "Credit Sales")) {
+        let name = Text.trim(tx.customerName, #char ' ');
+        if (name != "") {
+          let key = name.toLower();
+          let c : Customer = switch (result.get(key)) {
+            case (?existing) { existing };
+            case null { { id = bookId # "-customer-" # key; name; phone = ""; email = ""; brand = ""; transactions = []; totalSpent = 0.0; outstandingDebt = 0.0; lastTransactionDate = 0; transactionCount = 0; bookId; createdAt = tx.date } };
+          };
+          result.add(key, { c with
+            transactions = c.transactions.concat([tx.id]);
+            totalSpent = c.totalSpent + tx.amount;
+            outstandingDebt = c.outstandingDebt + (if (tx.typeSubtype == "Credit Sales") { tx.amount } else { 0.0 });
+            transactionCount = c.transactionCount + 1;
+            lastTransactionDate = Int.max(c.lastTransactionDate, tx.date);
+            phone = if (tx.date >= c.lastTransactionDate and tx.phone != "") { tx.phone } else { c.phone };
+            email = if (tx.date >= c.lastTransactionDate and tx.email != "") { tx.email } else { c.email };
+          });
+        };
+      };
+    };
+    result.values().toArray();
+  };
+
+  public query ({ caller }) func getCustomerPhoto(bookId : Text, name : Text) : async Text {
+    if (not isBookMember(caller, bookId)) { Runtime.trap("Book membership required") };
+    customerPhotos.get(bookId # "|" # Text.trim(name, #char ' ').toLower()).get("");
+  };
+
+  public shared ({ caller }) func setCustomerPhoto(bookId : Text, name : Text, photo : Text) : async () {
+    if (not isBookAdminMember(caller, bookId)) { Runtime.trap("Book admin access required") };
+    if (photo.size() > 280_000) { Runtime.trap("Photo must be smaller than 200 KB") };
+    if (photo != "" and not photo.startsWith(#text "data:image/jpeg;base64,") and not photo.startsWith(#text "data:image/png;base64,") and not photo.startsWith(#text "data:image/webp;base64,")) { Runtime.trap("Choose a JPEG, PNG or WebP photo") };
+    customerPhotos.add(bookId # "|" # Text.trim(name, #char ' ').toLower(), photo);
+  };
 
   // ─── AccessControl helpers ────────────────────────────────────────────────
 
   func acInitialize(caller : Principal) {
+    if (caller.isAnonymous()) { Runtime.trap("Sign in before initializing access") };
     if (not accessControlState.adminAssigned) {
       accessControlState.userRoles.add(caller, #admin);
       accessControlState.adminAssigned := true;
@@ -477,7 +524,7 @@ actor MiyacoGlobalBooks {
           email = tx.email;
           brand = tx.brand;
           transactions = [tx.id];
-          totalSpent = if (isCredit) { 0.0 } else { tx.amount };
+          totalSpent = tx.amount;
           outstandingDebt = if (isCredit) { tx.amount } else { 0.0 };
           lastTransactionDate = tx.date;
           transactionCount = 1;
@@ -494,7 +541,10 @@ actor MiyacoGlobalBooks {
         let updatedCustomer : Customer = {
           existingCust with
           transactions = updatedTxns;
-          totalSpent = existingCust.totalSpent + (if (isCredit) { 0.0 } else { tx.amount });
+          totalSpent = existingCust.totalSpent + tx.amount;
+          phone = if (tx.phone != "") { tx.phone } else { existingCust.phone };
+          email = if (tx.email != "") { tx.email } else { existingCust.email };
+          brand = if (tx.brand != "") { tx.brand } else { existingCust.brand };
           outstandingDebt = existingCust.outstandingDebt + (if (isCredit) { tx.amount } else { 0.0 });
           lastTransactionDate = newLastDate;
           transactionCount = existingCust.transactionCount + 1;
@@ -831,6 +881,11 @@ actor MiyacoGlobalBooks {
   };
 
   private func processTransactionInventory(tx : Transaction) : { #ok : Float; #err : Text } {
+    if (tx.cartons == 0 or tx.unitsPerCarton == 0) { return #err("Invalid transaction quantity") };
+    let matches = inventory.values().filter(func(item : InventoryItem) : Bool {
+      item.bookId == tx.bookId and item.name.toLower() == tx.itemName.toLower() and item.approved
+    }).toArray();
+    if (matches.size() > 1) { return #err("More than one inventory item has this name. Give each part and location a unique item name before posting") };
     let isSale = tx.typeSubtype == "Sales" or tx.typeSubtype == "Credit Sales";
     let isPurchase = tx.typeSubtype == "Purchases" or tx.typeSubtype == "Credit Purchases";
     if (isSale) {
@@ -870,14 +925,16 @@ actor MiyacoGlobalBooks {
         case (?k, ?item) {
           let newQty = item.quantity + unitsToAdd;
           let newHigh = if (newQty > item.highestEverQuantity) { newQty } else { item.highestEverQuantity };
-          inventory.add(k, { item with quantity = newQty; highestEverQuantity = newHigh });
+          let unitCost = tx.pricePerCarton / tx.unitsPerCarton.toFloat();
+          let averageCost = (item.costPrice * item.quantity.toFloat() + unitCost * unitsToAdd.toFloat()) / newQty.toFloat();
+          inventory.add(k, { item with quantity = newQty; highestEverQuantity = newHigh; costPrice = averageCost });
           Debug.print("PURCHASE add: " # tx.itemName # " +" # unitsToAdd.toText());
           return #ok(item.costPrice);
         };
         case _ {
           let newId = tx.bookId # "-auto-" # tx.itemName # "-" # Time.now().toText();
           let upc : Nat = if (tx.unitsPerCarton > 0) { tx.unitsPerCarton } else { 1 };
-          inventory.add(newId, { id = newId; name = tx.itemName; brand = tx.brand; productType = tx.productType; supplier = tx.customerName; quantity = unitsToAdd; costPrice = tx.pricePerCarton; sellingPrice = 0.0; unitsPerCarton = upc; locationId = ""; variants = ([] : [Text]); bookId = tx.bookId; approved = true; highestEverQuantity = unitsToAdd; createdAt = Time.now() });
+          inventory.add(newId, { id = newId; name = tx.itemName; brand = tx.brand; productType = tx.productType; supplier = tx.customerName; quantity = unitsToAdd; costPrice = tx.pricePerCarton / upc.toFloat(); sellingPrice = 0.0; unitsPerCarton = upc; locationId = ""; variants = ([] : [Text]); bookId = tx.bookId; approved = true; highestEverQuantity = unitsToAdd; createdAt = Time.now() });
           Debug.print("PURCHASE new item: " # tx.itemName # " +" # unitsToAdd.toText());
           return #ok(tx.pricePerCarton);
         };
@@ -897,6 +954,22 @@ actor MiyacoGlobalBooks {
 
     let isAdmin = isBookAdminMember(caller, transaction.bookId);
 
+    if (transactions.get(transaction.id) != null) { return #err("Transaction already exists") };
+    if (transaction.cartons == 0 or transaction.unitsPerCarton == 0) { return #err("Quantity and units per carton must be positive") };
+    if (not (transaction.pricePerCarton >= 0.0 and transaction.pricePerCarton < 1e15)) { return #err("Enter a valid price") };
+    if (transaction.typeSubtype != "Sales" and transaction.typeSubtype != "Credit Sales" and transaction.typeSubtype != "Purchases" and transaction.typeSubtype != "Credit Purchases") { return #err("Unsupported transaction type") };
+    if (Text.trim(transaction.customerName, #char ' ') == "") { return #err("Enter the customer or supplier name") };
+    if (transaction.currency != "NGN" and transaction.currency != "USD") { return #err("Unsupported currency") };
+    let rate = if (transaction.currency == "USD") {
+      let configured = switch (bookSettings.get(transaction.bookId)) {
+        case (?settings) { settings.exchangeRate };
+        case null { switch (systemSettings.get("default")) { case (?settings) { settings.exchangeRate }; case null { 0.0 } } };
+      };
+      if (not (configured > 0.0 and configured < 1e9)) { return #err("Set the book's NGN per USD exchange rate before recording dollar transactions") };
+      configured;
+    } else { 1.0 };
+    let priceInNaira = transaction.pricePerCarton * rate;
+
     // For sales/credit-sales: validate inventory exists and has sufficient stock
     if (transaction.typeSubtype == "Sales" or transaction.typeSubtype == "Credit Sales") {
       let invEntry = inventory.entries().find(func((_, item) : (Text, InventoryItem)) : Bool {
@@ -910,7 +983,7 @@ actor MiyacoGlobalBooks {
         };
         case (?(_, item)) {
           // Quantity in inventory is stored as total units; convert transaction cartons to units
-          let cartonQty = if (item.unitsPerCarton > 0) { item.quantity / item.unitsPerCarton } else { item.quantity };
+          let cartonQty = item.quantity / transaction.unitsPerCarton;
           if (cartonQty < transaction.cartons) {
             return #err("Insufficient stock: only " # cartonQty.toText() # " cartons available for " # transaction.itemName);
           };
@@ -918,34 +991,39 @@ actor MiyacoGlobalBooks {
       };
     };
 
-    let totalUnits = transaction.cartons * transaction.unitsPerCarton;
-    let totalAmount = (transaction.cartons * transaction.unitsPerCarton).toFloat() * transaction.pricePerCarton;
+    let totalAmount = transaction.cartons.toFloat() * priceInNaira;
     let finalTx : Transaction = {
       transaction with
       approved = isAdmin;
       approvalProcessed = false;
       createdBy = caller;
       amount = totalAmount;
+      customerName = Text.trim(transaction.customerName, #char ' ');
+      sellingPriceAtSale = priceInNaira / transaction.unitsPerCarton.toFloat();
+      costPriceAtSale = 0.0;
       cartons = transaction.cartons;
       unitsPerCarton = transaction.unitsPerCarton;
-      pricePerCarton = transaction.pricePerCarton;
+      pricePerCarton = priceInNaira;
+      currency = "NGN";
+      notes = transaction.notes # (if (transaction.currency == "USD") { " [Original USD/carton: " # transaction.pricePerCarton.toText() # "; NGN/USD: " # rate.toText() # "]" } else { "" });
     };
-    transactions.add(transaction.id, finalTx);
-
-    logAudit(transaction.bookId, "CREATE", "transaction", transaction.id, caller, getActorName(caller),
-      "Added " # transaction.typeSubtype # " transaction for " # transaction.customerName);
-
     // Auto-track customer and process inventory for admin-approved transactions
     if (isAdmin) {
-      if (transaction.typeSubtype == "Sales" or transaction.typeSubtype == "Credit Sales") {
-        upsertCustomerProfile(finalTx);
+      let cost = switch (processTransactionInventory(finalTx)) {
+        case (#err(message)) { return #err(message) };
+        case (#ok(value)) { value };
       };
-      let _ = processTransactionInventory(finalTx);
-      // Mark as processed
-      transactions.add(transaction.id, { finalTx with approvalProcessed = true; approved = true });
+      let processedTx = { finalTx with costPriceAtSale = cost; approvalProcessed = true; approved = true };
+      transactions.add(transaction.id, processedTx);
+      if (transaction.typeSubtype == "Sales" or transaction.typeSubtype == "Credit Sales") {
+        upsertCustomerProfile(processedTx);
+      };
+      logAudit(transaction.bookId, "CREATE", "transaction", transaction.id, caller, getActorName(caller), "Recorded " # transaction.typeSubtype);
       Debug.print("Transaction added and approved by admin: " # transaction.id);
       #ok("Transaction added successfully");
     } else {
+      transactions.add(transaction.id, finalTx);
+      logAudit(transaction.bookId, "CREATE", "transaction", transaction.id, caller, getActorName(caller), "Submitted " # transaction.typeSubtype);
       Debug.print("Transaction pending approval: " # transaction.id);
       #ok("Transaction submitted for approval");
     };
@@ -975,7 +1053,8 @@ actor MiyacoGlobalBooks {
               return #err("Item not found in inventory: " # tx.itemName);
             };
             case (?(_, item)) {
-              let cartonQty = if (item.unitsPerCarton > 0) { item.quantity / item.unitsPerCarton } else { item.quantity };
+              if (tx.unitsPerCarton == 0 or tx.cartons == 0) { return #err("Invalid transaction quantity") };
+              let cartonQty = item.quantity / tx.unitsPerCarton;
               if (cartonQty < tx.cartons) {
                 return #err("Insufficient stock: only " # cartonQty.toText() # " cartons available for " # tx.itemName);
               };
@@ -984,12 +1063,12 @@ actor MiyacoGlobalBooks {
         };
 
         let invResult = processTransactionInventory(tx);
-        switch (invResult) {
+        let cost = switch (invResult) {
           case (#err(msg)) { return #err(msg) };
-          case (#ok(_)) {};
+          case (#ok(value)) { value };
         };
 
-        let approvedTx = { tx with approved = true; approvalProcessed = true };
+        let approvedTx = { tx with approved = true; approvalProcessed = true; costPriceAtSale = cost };
         transactions.add(transactionId, approvedTx);
 
         if (tx.typeSubtype == "Sales" or tx.typeSubtype == "Credit Sales") {
@@ -1013,6 +1092,7 @@ actor MiyacoGlobalBooks {
         if (not isBookAdminMember(caller, tx.bookId)) {
           return #err("Unauthorized: Only book admins can reject transactions");
         };
+        if (tx.approved or tx.approvalProcessed) { return #err("Approved transactions cannot be rejected") };
         transactions.remove(transactionId);
         logAudit(tx.bookId, "REJECT", "transaction", transactionId, caller, getActorName(caller),
           "Rejected " # tx.typeSubtype # " transaction for " # tx.customerName);
@@ -1031,6 +1111,7 @@ actor MiyacoGlobalBooks {
         if (not isBookAdminMember(caller, tx.bookId)) {
           return #err("Unauthorized: Only book admins can delete transactions");
         };
+        if (tx.approved or tx.approvalProcessed) { return #err("Posted transactions require a reversal to preserve stock and customer balances; deletion is disabled") };
         transactions.remove(transactionId);
         logAudit(tx.bookId, "DELETE", "transaction", transactionId, caller, getActorName(caller),
           "Deleted " # tx.typeSubtype # " transaction for " # tx.customerName);
@@ -1048,7 +1129,7 @@ actor MiyacoGlobalBooks {
     let isAdmin = isBookAdminMember(caller, bookId);
     transactions.values()
       .filter(func(tx : Transaction) : Bool {
-        tx.bookId == bookId and (isAdmin or tx.approved)
+        tx.bookId == bookId and tx.approved
       })
       .toArray();
   };
@@ -1073,7 +1154,7 @@ actor MiyacoGlobalBooks {
     let isAdmin = isBookAdminMember(caller, bookId);
     let bookTxs = transactions.values()
       .filter(func(tx : Transaction) : Bool {
-        tx.bookId == bookId and (isAdmin or tx.approved)
+        tx.bookId == bookId and tx.approved
       })
       .toArray();
 
@@ -1093,7 +1174,7 @@ actor MiyacoGlobalBooks {
     let isAdmin = isBookAdminMember(caller, bookId);
     transactions.values()
       .filter(func(tx : Transaction) : Bool {
-        tx.bookId == bookId and tx.typeSubtype == transactionType and (isAdmin or tx.approved)
+        tx.bookId == bookId and tx.typeSubtype == transactionType and tx.approved
       })
       .toArray();
   };
@@ -1115,7 +1196,7 @@ actor MiyacoGlobalBooks {
     var creditPurchases = 0.0;
 
     for ((_, tx) in transactions.entries()) {
-      if (tx.bookId == bookId and (isAdmin or tx.approved)) {
+      if (tx.bookId == bookId and tx.approved) {
         switch (tx.typeSubtype) {
           case "Sales" { sales += tx.amount };
           case "Credit Sales" { creditSales += tx.amount };
@@ -1138,6 +1219,7 @@ actor MiyacoGlobalBooks {
       return #err("Unauthorized: You must be a member of this book");
     };
 
+    if (customers.get(customer.id) != null) { return #err("Customer already exists") };
     customers.add(customer.id, customer);
     logAudit(customer.bookId, "CREATE", "customer", customer.id, caller, getActorName(caller),
       "Added customer: " # customer.name);
@@ -1152,7 +1234,13 @@ actor MiyacoGlobalBooks {
       return #err("Unauthorized: You must be a member of this book");
     };
 
-    customers.add(customer.id, customer);
+    switch (customers.get(customer.id)) {
+      case null { return #err("Customer not found") };
+      case (?existing) {
+        if (existing.bookId != customer.bookId) { return #err("Customer does not belong to this book") };
+        customers.add(customer.id, { existing with phone = customer.phone; email = customer.email; brand = customer.brand });
+      };
+    };
     Debug.print("Customer updated: " # customer.id);
     #ok("Customer updated successfully");
   };
@@ -1162,9 +1250,7 @@ actor MiyacoGlobalBooks {
       Runtime.trap("Unauthorized: You must be a member of this book");
     };
 
-    customers.values()
-      .filter(func(c : Customer) : Bool { c.bookId == bookId })
-      .toArray();
+    customerLedger(bookId);
   };
 
   // Returns all unique customer names in a book (for autocomplete)
@@ -1173,10 +1259,7 @@ actor MiyacoGlobalBooks {
       Runtime.trap("Unauthorized: You must be a member of this book");
     };
 
-    customers.values()
-      .filter(func(c : Customer) : Bool { c.bookId == bookId })
-      .map<Customer, Text>(func(c) { c.name })
-      .toArray();
+    customerLedger(bookId).map(func(c : Customer) : Text { c.name });
   };
   public query ({ caller }) func getInventoryItemNames(bookId : Text) : async [Text] {
     if (not isBookMember(caller, bookId)) {
@@ -1222,6 +1305,9 @@ actor MiyacoGlobalBooks {
     };
 
     let isAdmin = isBookAdminMember(caller, item.bookId);
+    if (inventory.get(item.id) != null) { return #err("Inventory item already exists") };
+    if (item.quantity == 0 or item.unitsPerCarton == 0) { return #err("Quantity and units per carton must be positive") };
+    if (not (item.costPrice >= 0.0 and item.costPrice < 1e15)) { return #err("Enter a valid cost price") };
     // Track highest ever quantity
     let highestEver = if (item.quantity > item.highestEverQuantity) { item.quantity } else { item.highestEverQuantity };
     let finalItem : InventoryItem = { item with approved = isAdmin; highestEverQuantity = highestEver };
@@ -1246,7 +1332,7 @@ actor MiyacoGlobalBooks {
         itemName = item.name;
         cartons = item.quantity / (if (item.unitsPerCarton > 0) { item.unitsPerCarton } else { 1 });
         unitsPerCarton = if (item.unitsPerCarton > 0) { item.unitsPerCarton } else { 1 };
-        pricePerCarton = item.costPrice;
+        pricePerCarton = item.costPrice * (if (item.unitsPerCarton > 0) { item.unitsPerCarton } else { 1 }).toFloat();
         amount = totalCost;
         sellingPriceAtSale = 0.0;
         costPriceAtSale = item.costPrice;
@@ -1279,8 +1365,12 @@ actor MiyacoGlobalBooks {
 
     // Preserve highestEverQuantity across updates
     let existingHigh = switch (inventory.get(item.id)) {
-      case null { item.highestEverQuantity };
-      case (?existing) { if (item.quantity > existing.highestEverQuantity) { item.quantity } else { existing.highestEverQuantity } };
+      case null { return #err("Inventory item not found") };
+      case (?existing) {
+        if (existing.bookId != item.bookId) { return #err("Item does not belong to this book") };
+        if (existing.quantity != item.quantity or existing.approved != item.approved) { return #err("Record a purchase or sale to change stock; use the approval workflow to change status") };
+        if (item.quantity > existing.highestEverQuantity) { item.quantity } else { existing.highestEverQuantity }
+      };
     };
     inventory.add(item.id, { item with highestEverQuantity = existingHigh });
     Debug.print("Inventory item updated: " # item.id);
@@ -1296,6 +1386,7 @@ actor MiyacoGlobalBooks {
         if (not isBookAdminMember(caller, item.bookId)) {
           return #err("Unauthorized: Only book admins can approve inventory items");
         };
+        if (item.approved) { return #err("Inventory item already approved") };
         let highestEver = if (item.quantity > item.highestEverQuantity) { item.quantity } else { item.highestEverQuantity };
         let approvedItem = { item with approved = true; highestEverQuantity = highestEver };
         inventory.add(itemId, approvedItem);
@@ -1315,7 +1406,7 @@ actor MiyacoGlobalBooks {
           itemName = item.name;
           cartons = item.quantity / (if (item.unitsPerCarton > 0) { item.unitsPerCarton } else { 1 });
           unitsPerCarton = if (item.unitsPerCarton > 0) { item.unitsPerCarton } else { 1 };
-          pricePerCarton = item.costPrice;
+          pricePerCarton = item.costPrice * (if (item.unitsPerCarton > 0) { item.unitsPerCarton } else { 1 }).toFloat();
           amount = totalCost;
           sellingPriceAtSale = 0.0;
           costPriceAtSale = item.costPrice;
@@ -1348,6 +1439,7 @@ actor MiyacoGlobalBooks {
         if (not isBookAdminMember(caller, item.bookId)) {
           return #err("Unauthorized: Only book admins can reject inventory items");
         };
+        if (item.approved) { return #err("Posted inventory cannot be rejected") };
         inventory.remove(itemId);
         logAudit(item.bookId, "REJECT", "inventory", itemId, caller, getActorName(caller),
           "Rejected inventory item: " # item.name);
@@ -1473,6 +1565,7 @@ actor MiyacoGlobalBooks {
       case null { return #err("Location not found") };
       case (?loc) {
         if (loc.bookId != bookId) { return #err("Location does not belong to this book") };
+        if (inventory.values().find(func(item : InventoryItem) : Bool { item.bookId == bookId and item.locationId == locationId }) != null) { return #err("Move inventory before deleting this location") };
         locations.remove(locationId);
         Debug.print("Location deleted: " # locationId);
         #ok("Location deleted successfully");
@@ -1506,11 +1599,18 @@ actor MiyacoGlobalBooks {
     if (not isBookAdminMember(caller, bookId)) {
       return #err("Unauthorized: Only book admins can transfer inventory");
     };
+    if (quantity == 0 or fromLocationId == toLocationId) { return #err("Choose a different destination and a positive quantity") };
+    if (unit != "cartons" and unit != "units") { return #err("Invalid quantity unit") };
+    switch (locations.get(toLocationId)) {
+      case (?location) { if (location.bookId != bookId) { return #err("Destination belongs to another book") } };
+      case null { return #err("Destination location not found") };
+    };
 
     switch (inventory.get(itemId)) {
       case null { return #err("Inventory item not found") };
       case (?item) {
         if (item.bookId != bookId) { return #err("Item does not belong to this book") };
+        if (not item.approved) { return #err("Approve inventory before transferring it") };
         if (item.locationId != fromLocationId) { return #err("Item is not at the specified source location") };
 
         let unitsToTransfer = if (unit == "cartons" and item.unitsPerCarton > 0) {
@@ -1597,7 +1697,7 @@ actor MiyacoGlobalBooks {
     for ((_, tx) in transactions.entries()) {
       if (
         tx.bookId == bookId and
-        (isAdmin or tx.approved) and
+        tx.approved and
         tx.date >= startTime and
         tx.date <= endTime and
         (tx.typeSubtype == "Sales" or tx.typeSubtype == "Credit Sales")
@@ -1677,7 +1777,7 @@ actor MiyacoGlobalBooks {
     let isAdmin = isBookAdminMember(caller, bookId);
     expenses.values()
       .filter(func(exp : Expense) : Bool {
-        exp.bookId == bookId and (isAdmin or exp.approved)
+        exp.bookId == bookId and exp.approved
       })
       .toArray();
   };
@@ -2026,7 +2126,7 @@ actor MiyacoGlobalBooks {
     var grossMargin = 0.0;
 
     for ((_, tx) in transactions.entries()) {
-      if (tx.bookId == bookId and (isAdmin or tx.approved)) {
+      if (tx.bookId == bookId and tx.approved) {
         switch (tx.typeSubtype) {
           case "Sales" {
             totalInflows += tx.amount;
@@ -2042,9 +2142,7 @@ actor MiyacoGlobalBooks {
     };
 
     // Customer stats from auto-tracked profiles
-    let bookCustomers = customers.values()
-      .filter(func(c : Customer) : Bool { c.bookId == bookId })
-      .toArray();
+    let bookCustomers = customerLedger(bookId);
 
     var customersWithDebt = 0;
     var totalOutstandingDebt = 0.0;
@@ -2081,7 +2179,7 @@ actor MiyacoGlobalBooks {
     // Recent transactions (top 20 sorted by date desc)
     let bookTxs = transactions.values()
       .filter(func(tx : Transaction) : Bool {
-        tx.bookId == bookId and (isAdmin or tx.approved)
+        tx.bookId == bookId and tx.approved
       })
       .toArray();
 
@@ -2148,16 +2246,16 @@ actor MiyacoGlobalBooks {
       paybackDate : Time.Time;
     }] = [];
 
-    for ((_, tx) in transactions.entries()) {
-      if (tx.bookId == bookId and (isAdmin or tx.approved) and tx.typeSubtype == "Credit Sales") {
-        totalOutstanding += tx.amount;
+    for (customer in customerLedger(bookId).values()) {
+      if (customer.outstandingDebt > 0.0) {
+        totalOutstanding += customer.outstandingDebt;
         customersWithDebt += 1;
         outstandingCredits := outstandingCredits.concat([{
-          debtor = tx.customerName;
-          totalOwed = tx.amount;
+          debtor = customer.name;
+          totalOwed = customer.outstandingDebt;
           amountPaid = 0.0;
-          balance = tx.amount;
-          paybackDate = tx.date + 30 * 24 * 60 * 60 * 1_000_000_000;
+          balance = customer.outstandingDebt;
+          paybackDate = customer.lastTransactionDate + 30 * 24 * 60 * 60 * 1_000_000_000;
         }]);
       };
     };
@@ -2200,7 +2298,7 @@ actor MiyacoGlobalBooks {
         if (tx.bookId == bookId and
             tx.itemName.toLower() == item.name.toLower() and
             (tx.typeSubtype == "Sales" or tx.typeSubtype == "Credit Sales") and
-            (isAdmin or tx.approved)) {
+            tx.approved) {
           totalUnitsSold += tx.cartons * tx.unitsPerCarton;
           // Use stored price-at-sale for accurate gross profit
           grossProfit += (tx.sellingPriceAtSale - tx.costPriceAtSale) * (tx.cartons * tx.unitsPerCarton).toFloat();
@@ -2326,7 +2424,7 @@ actor MiyacoGlobalBooks {
     let customerTxs = transactions.values()
       .filter(func(tx : Transaction) : Bool {
         tx.bookId == bookId and
-        (isAdmin or tx.approved) and
+        tx.approved and
         tx.customerName.toLower() == lowerName
       })
       .toArray();
@@ -2371,7 +2469,7 @@ actor MiyacoGlobalBooks {
     var b90plus : [Transaction] = [];
 
     for ((_, tx) in transactions.entries()) {
-      if (tx.bookId == bookId and (isAdmin or tx.approved) and tx.typeSubtype == "Credit Sales") {
+      if (tx.bookId == bookId and tx.approved and tx.typeSubtype == "Credit Sales") {
         let dueDate = tx.date + 30 * dayNs;
         if (dueDate >= nowNs) {
           // not yet overdue
@@ -2459,7 +2557,7 @@ actor MiyacoGlobalBooks {
     let periodStart = if (freq == "weekly") { nowNs - weekNs } else { nowNs - monthNs };
 
     for ((_, tx) in transactions.entries()) {
-      if (tx.bookId == bookId and (isAdmin or tx.approved) and tx.date >= periodStart) {
+      if (tx.bookId == bookId and tx.approved and tx.date >= periodStart) {
         txCount += 1;
         switch (tx.typeSubtype) {
           case "Sales" {
@@ -2480,7 +2578,7 @@ actor MiyacoGlobalBooks {
     };
 
     for ((_, exp) in expenses.entries()) {
-      if (exp.bookId == bookId and (isAdmin or exp.approved) and exp.date >= periodStart) {
+      if (exp.bookId == bookId and exp.approved and exp.date >= periodStart) {
         totalExpensesAmt += exp.amount;
       };
     };
@@ -2556,7 +2654,7 @@ actor MiyacoGlobalBooks {
     // Filter transactions in range
     let filteredTxs = transactions.values()
       .filter(func(tx : Transaction) : Bool {
-        tx.bookId == bookId and (isAdmin or tx.approved) and tx.date >= startTime
+        tx.bookId == bookId and tx.approved and tx.date >= startTime
       })
       .toArray();
 
@@ -2745,7 +2843,7 @@ actor MiyacoGlobalBooks {
     // ── Financial analytics ───────────────────────────────────────────────────
     let filteredExps = expenses.values()
       .filter(func(exp : Expense) : Bool {
-        exp.bookId == bookId and (isAdmin or exp.approved) and exp.date >= startTime
+        exp.bookId == bookId and exp.approved and exp.date >= startTime
       })
       .toArray();
 
@@ -2787,15 +2885,17 @@ actor MiyacoGlobalBooks {
     // Profit by product
     let profitByProduct : [ProfitByProductItem] = bookInv.map<InventoryItem, ProfitByProductItem>(func(item) {
       var grossProfit = 0.0;
+      var productRevenue = 0.0;
       var units = 0;
       for (tx in filteredTxs.values()) {
         if ((tx.typeSubtype == "Sales" or tx.typeSubtype == "Credit Sales") and
             tx.itemName.toLower() == item.name.toLower()) {
           grossProfit += (tx.sellingPriceAtSale - tx.costPriceAtSale) * (tx.cartons * tx.unitsPerCarton).toFloat();
+          productRevenue += tx.amount;
           units += tx.cartons * tx.unitsPerCarton;
         };
       };
-      let margin = if (totalRevenue > 0.0) { grossProfit / totalRevenue * 100.0 } else { 0.0 };
+      let margin = if (productRevenue > 0.0) { grossProfit / productRevenue * 100.0 } else { 0.0 };
       { itemName = item.name; grossProfit; units; margin }
     })
     .sort(func(a : ProfitByProductItem, b : ProfitByProductItem) : { #less; #equal; #greater } {
@@ -2807,14 +2907,34 @@ actor MiyacoGlobalBooks {
     let bookAuditEntries = auditLog.get(bookId).get([]);
     var totalApproved = 0;
     var totalRejected = 0;
+    var turnaroundCount = 0;
+    var turnaroundTotal = 0.0;
+    var fastest = 0.0;
+    var slowest = 0.0;
     for (entry in bookAuditEntries.values()) {
-      if (entry.action == "APPROVE") { totalApproved += 1 };
-      if (entry.action == "REJECT") { totalRejected += 1 };
+      if (entry.timestamp >= startTime) {
+        if (entry.action == "APPROVE") {
+          totalApproved += 1;
+          switch (bookAuditEntries.find(func(created : AuditLogEntry) : Bool {
+            created.action == "CREATE" and created.targetId == entry.targetId and created.targetType == entry.targetType and created.timestamp <= entry.timestamp
+          })) {
+            case null {};
+            case (?created) {
+              let hours = (entry.timestamp - created.timestamp).toFloat() / 3_600_000_000_000.0;
+              if (turnaroundCount == 0 or hours < fastest) { fastest := hours };
+              if (hours > slowest) { slowest := hours };
+              turnaroundCount += 1;
+              turnaroundTotal += hours;
+            };
+          };
+        };
+        if (entry.action == "REJECT") { totalRejected += 1 };
+      };
     };
     let approvalTurnaround : ApprovalTurnaround = {
-      avgHours = 24.0;
-      fastestHours = 0.5;
-      slowestHours = 72.0;
+      avgHours = if (turnaroundCount == 0) { 0.0 } else { turnaroundTotal / turnaroundCount.toFloat() };
+      fastestHours = fastest;
+      slowestHours = slowest;
       totalApproved;
       totalRejected;
     };

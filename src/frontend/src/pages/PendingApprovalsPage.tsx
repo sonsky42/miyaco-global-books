@@ -44,7 +44,7 @@ export default function PendingApprovalsPage({
     useGetPendingInventory(bookId);
   const { data: pendingExpenses = [], isLoading: expLoading } =
     useGetPendingExpenses(bookId);
-  const { data: isAdmin } = useIsCallerAdmin();
+  const { data: isAdmin, isLoading: adminLoading } = useIsCallerAdmin(bookId);
 
   const approveTransaction = useApproveTransaction();
   const rejectTransaction = useRejectTransaction();
@@ -53,7 +53,7 @@ export default function PendingApprovalsPage({
   const approveExpense = useApproveExpense();
   const rejectExpense = useRejectExpense();
 
-  const isLoading = txLoading || invLoading || expLoading;
+  const isLoading = adminLoading || txLoading || invLoading || expLoading;
 
   const handleApproveTransaction = async (transactionId: string) => {
     try {
@@ -139,7 +139,7 @@ export default function PendingApprovalsPage({
     }
   };
 
-  if (!isAdmin) {
+  if (!isAdmin && !adminLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Card className="max-w-md">

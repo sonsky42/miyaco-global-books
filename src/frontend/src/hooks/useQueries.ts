@@ -1144,14 +1144,14 @@ export function useGetGrossMarginByPeriod(
   });
 }
 
-export function useIsCallerAdmin() {
+export function useIsCallerAdmin(bookId?: string) {
   const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<boolean>({
-    queryKey: ["isAdmin"],
+    queryKey: ["isAdmin", bookId ?? "global"],
     queryFn: async () => {
       if (!actor) return false;
-      return actor.isCallerAdmin();
+      return bookId ? actor.isCallerBookAdmin(bookId) : actor.isCallerAdmin();
     },
     enabled: !!actor && !actorFetching,
   });
@@ -1342,7 +1342,7 @@ export function useGetAnalyticsExtended(bookId: string, timeFilter: string) {
       if (!actor) return null;
       const result = await actor.getAnalyticsExtended(bookId, timeFilter);
       if (result.__kind__ === "ok") return result.ok;
-      return null;
+      throw new Error(result.err);
     },
     enabled: !!actor && !actorFetching && !!bookId,
     staleTime: 2 * 60 * 1000,

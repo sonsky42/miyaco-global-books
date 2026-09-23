@@ -501,7 +501,7 @@ export default function DashboardPage({
         tx.typeSubtype === "Sales" || tx.typeSubtype === "Credit Sales";
       if (isSaleType) {
         const totalUnits = Number(tx.cartons) * Number(tx.unitsPerCarton);
-        inflows += totalUnits * (tx.pricePerCarton ?? 0);
+        inflows += tx.amount;
         grossMargin +=
           ((tx.sellingPriceAtSale ?? 0) - (tx.costPriceAtSale ?? 0)) *
           totalUnits;
