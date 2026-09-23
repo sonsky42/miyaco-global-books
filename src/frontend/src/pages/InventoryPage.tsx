@@ -196,8 +196,8 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
   const dismissDraftOrder = useDismissDraftPurchaseOrder();
 
   // Currency helpers derived from book settings
-  const baseCurrency = bookSettings?.baseCurrency ?? "NGN";
-  const exchangeRate = bookSettings?.exchangeRate ?? 1;
+  const baseCurrency = "NGN";
+  const exchangeRate = bookSettings?.exchangeRate ?? 0;
   const symbol = currencySymbol(baseCurrency);
   const hideCostPrices =
     bookSettings?.hideCostPricesFromNonAdmins === true && !isAdmin;
@@ -277,25 +277,29 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
   };
 
   const handleConfirmSave = async () => {
+    if (formData.currency === "USD" && !(exchangeRate > 0)) {
+      toast.error("Set the book's NGN per USD exchange rate first");
+      return;
+    }
     setCostConfirmOpen(false);
     const defaultLocationId =
       formData.locationId || (locations.length > 0 ? locations[0].id : "main");
 
     const item: InventoryItem = {
-      id: `item-${Date.now()}`,
+      id: `item-${crypto.randomUUID()}`,
       name: formData.name,
       brand: formData.brand,
       productType: formData.productType,
       supplier: formData.supplier,
-      quantity: BigInt(formData.quantity),
+      quantity: BigInt(formData.quantity) * BigInt(formData.unitsPerCarton || "1"),
       unitsPerCarton: BigInt(formData.unitsPerCarton || "1"),
-      costPrice: Number.parseFloat(formData.costPrice),
+      costPrice: Number.parseFloat(formData.costPrice) * (formData.currency === "USD" ? exchangeRate : 1),
       sellingPrice: 0,
       variants: [],
       bookId,
       approved: false,
       locationId: defaultLocationId,
-      highestEverQuantity: BigInt(formData.quantity),
+      highestEverQuantity: BigInt(formData.quantity) * BigInt(formData.unitsPerCarton || "1"),
       createdAt: BigInt(Date.now()) * BigInt(1_000_000),
     };
 
@@ -404,7 +408,7 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
           <h1 className="text-3xl font-bold mb-1">Inventory</h1>
           <p className="text-muted-foreground">
             Manage stock across all locations in real time
-            {baseCurrency === "USD" ? " · USD ($)" : " · NGN (₦)"}
+            {" · NGN (₦)"}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -1049,16 +1053,16 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
                             >
                               {Number(item.quantity)}
                               <span className="text-sm font-normal text-muted-foreground ml-1">
-                                cartons
+                                units
                               </span>
                             </p>
                             {Number(item.unitsPerCarton) > 0 && (
                               <p className="text-xs text-muted-foreground">
                                 {(
-                                  Number(item.quantity) *
+                                  Number(item.quantity) /
                                   Number(item.unitsPerCarton)
                                 ).toLocaleString()}{" "}
-                                units total
+                                cartons equivalent
                               </p>
                             )}
                           </div>
