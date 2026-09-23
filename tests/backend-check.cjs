@@ -25,7 +25,7 @@ if (process.argv.includes('--build')) {
   const compiled = mo.wasm('main.mo', 'ic');
   console.log('IC WebAssembly build passed: ' + compiled.wasm.length + ' bytes');
   console.log('Build output fields: ' + Object.keys(compiled).join(', '));
-  mo.write('previous.most', fs.readFileSync(path.join(root, 'src/backend/dist/backend.most'), 'utf8'));
+  mo.write('previous.most', fs.readFileSync(path.join(root, 'baselines/caffeine-export-v23.most'), 'utf8'));
   mo.write('updated.most', compiled.stable);
   const compatibility = mo.compiler.stableCompatible('previous.most', 'updated.most');
   console.log('Stable-state compatibility: ' + JSON.stringify(compatibility));

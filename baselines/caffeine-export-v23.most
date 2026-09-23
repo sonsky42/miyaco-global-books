@@ -1,0 +1,268 @@
+// Version: 1.0.0
+type AccountingBook__449811160 =
+  {
+    admin : Principal;
+    adminMembers : [Principal];
+    createdAt : Time__688418391;
+    id : Text;
+    members : [Principal];
+    name : Text
+  };
+type ApprovalStatus__1072888826 = {#approved; #pending; #rejected};
+type AuditLogEntry__32156946 =
+  {
+    action : Text;
+    actorName : Text;
+    actorPrincipal : Text;
+    bookId : Text;
+    details : Text;
+    id : Text;
+    targetId : Text;
+    targetType : Text;
+    timestamp : Int
+  };
+type BookSettings__294784318 =
+  {
+    baseCurrency : Text;
+    bookId : Text;
+    exchangeRate : Float;
+    hideCostPricesFromNonAdmins : Bool;
+    lastSummaryDate : Int;
+    scheduledSummaryFrequency : Text
+  };
+type Customer__263943254 =
+  {
+    bookId : Text;
+    brand : Text;
+    createdAt : Time__688418391;
+    email : Text;
+    id : Text;
+    lastTransactionDate : Time__688418391;
+    name : Text;
+    outstandingDebt : Float;
+    phone : Text;
+    totalSpent : Float;
+    transactionCount : Nat;
+    transactions : [Text]
+  };
+type Data__80296667<K, V> =
+  {var count : Nat__1040412405; kvs : [var ?(K, V)]};
+type DraftPurchaseOrder__756669312 =
+  {
+    bookId : Text;
+    currentQuantity : Nat;
+    id : Text;
+    inventoryItemId : Text;
+    itemName : Text;
+    status : Text;
+    suggestedQuantity : Nat;
+    triggeredAt : Int
+  };
+type Expense__25862281 =
+  {
+    amount : Float;
+    approved : Bool;
+    bookId : Text;
+    category : Text;
+    createdBy : Principal;
+    date : Time__688418391;
+    description : Text;
+    id : Text
+  };
+type Int__616954475 = Int;
+type Int__837511138 = Int__616954475;
+type Internal__41346355<K, V> =
+  {children : [var ?Node__1000929467<K, V>]; data : Data__80296667<K, V>};
+type InventoryItem__576608082 =
+  {
+    approved : Bool;
+    bookId : Text;
+    brand : Text;
+    costPrice : Float;
+    createdAt : Time__688418391;
+    highestEverQuantity : Nat;
+    id : Text;
+    locationId : Text;
+    name : Text;
+    productType : Text;
+    quantity : Nat;
+    sellingPrice : Float;
+    supplier : Text;
+    unitsPerCarton : Nat;
+    variants : [Text]
+  };
+type InventoryTransfer__899019291 =
+  {
+    bookId : Text;
+    fromLocationId : Text;
+    id : Text;
+    itemId : Text;
+    itemName : Text;
+    quantity : Nat;
+    toLocationId : Text;
+    transferredAt : Time__688418391;
+    transferredBy : Principal;
+    unit : Text
+  };
+type JoinRequest__81935976 =
+  {
+    bookId : Text;
+    requestedAt : Time__688418391;
+    status : ApprovalStatus__1072888826;
+    user : Principal
+  };
+type Leaf__712614010<K, V> = {data : Data__80296667<K, V>};
+type Location__31265466 =
+  {
+    bookId : Text;
+    createdAt : Time__688418391;
+    createdBy : Principal;
+    id : Text;
+    name : Text
+  };
+type Map__222667396<K, V> = Map__912772452<K, V>;
+type Map__709709801<K, V> =
+  {var root : Node__1000929467<K, V>; var size : Nat__1040412405};
+type Map__912772452<K, V> = Map__709709801<K, V>;
+type Nat__1040412405 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__1000929467<K, V> =
+  {#internal : Internal__41346355<K, V>; #leaf : Leaf__712614010<K, V>};
+type ScheduledSummary__584404292 =
+  {
+    bookId : Text;
+    generatedAt : Int;
+    grossMargin : Float;
+    id : Text;
+    periodLabel : Text;
+    topCustomerNames : [Text];
+    topItemNames : [Text];
+    totalExpenses : Float;
+    totalInflows : Float;
+    transactionCount : Nat
+  };
+type SystemSettings__99999634 =
+  {
+    companyInfo : Text;
+    currencyRounding : Nat;
+    exchangeRate : Float;
+    multiStore : Bool;
+    taxRate : Float
+  };
+type Time__298180599 = Int__837511138;
+type Time__688418391 = Time__298180599;
+type Transaction__865268250 =
+  {
+    amount : Float;
+    approvalProcessed : Bool;
+    approved : Bool;
+    bookId : Text;
+    brand : Text;
+    cartons : Nat;
+    costPriceAtSale : Float;
+    createdBy : Principal;
+    currency : Text;
+    customerName : Text;
+    date : Time__688418391;
+    email : Text;
+    id : Text;
+    itemName : Text;
+    notes : Text;
+    paymentMethod : Text;
+    phone : Text;
+    pricePerCarton : Float;
+    productType : Text;
+    sellingPriceAtSale : Float;
+    typeSubtype : Text;
+    unitsPerCarton : Nat
+  };
+type UserProfile__491224006 =
+  {company : Text; email : Text; name : Text; phone : Text};
+type UserRole__599675725 = {#admin; #guest; #user};
+actor {
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__222667396<Principal, UserRole__599675725>
+    };
+  stable var accountingBooks :
+    {
+      var root : Node__1000929467<Text, AccountingBook__449811160>;
+      var size : Nat__1040412405
+    };
+  stable approvalState :
+    {
+      var approvalStatus :
+        Map__222667396<Principal, ApprovalStatus__1072888826>
+    };
+  stable var auditLog :
+    {
+      var root : Node__1000929467<Text, [AuditLogEntry__32156946]>;
+      var size : Nat__1040412405
+    };
+  stable var bookSettings :
+    {
+      var root : Node__1000929467<Text, BookSettings__294784318>;
+      var size : Nat__1040412405
+    };
+  stable var customers :
+    {
+      var root : Node__1000929467<Text, Customer__263943254>;
+      var size : Nat__1040412405
+    };
+  stable var draftPurchaseOrders :
+    {
+      var root : Node__1000929467<Text, [DraftPurchaseOrder__756669312]>;
+      var size : Nat__1040412405
+    };
+  stable var expenses :
+    {
+      var root : Node__1000929467<Text, Expense__25862281>;
+      var size : Nat__1040412405
+    };
+  stable var inventory :
+    {
+      var root : Node__1000929467<Text, InventoryItem__576608082>;
+      var size : Nat__1040412405
+    };
+  stable var inventoryTransfers :
+    {
+      var root : Node__1000929467<Text, InventoryTransfer__899019291>;
+      var size : Nat__1040412405
+    };
+  stable var joinRequests :
+    {
+      var root : Node__1000929467<Text, JoinRequest__81935976>;
+      var size : Nat__1040412405
+    };
+  stable var locations :
+    {
+      var root : Node__1000929467<Text, Location__31265466>;
+      var size : Nat__1040412405
+    };
+  stable var scheduledSummaries :
+    {
+      var root : Node__1000929467<Text, [ScheduledSummary__584404292]>;
+      var size : Nat__1040412405
+    };
+  stable var systemSettings :
+    {
+      var root : Node__1000929467<Text, SystemSettings__99999634>;
+      var size : Nat__1040412405
+    };
+  stable var transactions :
+    {
+      var root : Node__1000929467<Text, Transaction__865268250>;
+      var size : Nat__1040412405
+    };
+  stable var userBooks :
+    {
+      var root : Node__1000929467<Principal, [Text]>;
+      var size : Nat__1040412405
+    };
+  stable var userProfiles :
+    {
+      var root : Node__1000929467<Principal, UserProfile__491224006>;
+      var size : Nat__1040412405
+    }
+};
