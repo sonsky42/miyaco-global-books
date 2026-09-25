@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   AlertTriangle,
@@ -30,10 +31,16 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
+  DebtPayments,
+  TransactionLink,
+  naira,
+} from "../components/LedgerControls";
+import { useActor } from "../hooks/useActor";
+import { useIsCallerAdmin } from "../hooks/useQueries";
+import {
   useGetAnalyticsExtended,
   useGetDashboardMetrics,
   useGetOrGenerateScheduledSummary,
-  useGetTransactions,
 } from "../hooks/useQueries";
 
 interface DashboardPageProps {
@@ -475,41 +482,20 @@ export default function DashboardPage({
     isError: metricsError,
     refetch: refetchMetrics,
   } = useGetDashboardMetrics(bookId);
-  const {
-    data: allTransactions = [],
-    isLoading: txLoading,
-    isError: txError,
-    refetch: refetchTx,
-  } = useGetTransactions(bookId);
 
   const recentTransactions = metrics?.recentTransactions ?? [];
 
-  // Period-filtered inflows and gross margin
-  const { periodInflows, periodGrossMargin } = useMemo(() => {
-    if (txError) return { periodInflows: 0, periodGrossMargin: 0 };
-    const startMs = getStartDate(timeframe).getTime();
-    const endMs = Date.now();
-    const filtered = allTransactions.filter((tx) => {
-      if (!tx.approved) return false;
-      const txMs = Number(tx.date) / 1_000_000;
-      return txMs >= startMs && txMs <= endMs;
-    });
-    let inflows = 0;
-    let grossMargin = 0;
-    for (const tx of filtered) {
-      const isSaleType =
-        tx.typeSubtype === "Sales" || tx.typeSubtype === "Credit Sales";
-      if (isSaleType) {
-        const totalUnits = Number(tx.cartons) * Number(tx.unitsPerCarton);
-        inflows += tx.amount;
-        grossMargin +=
-          ((tx.sellingPriceAtSale ?? 0) - (tx.costPriceAtSale ?? 0)) *
-          totalUnits;
-      }
-    }
-    return { periodInflows: inflows, periodGrossMargin: grossMargin };
-  }, [allTransactions, timeframe, txError]);
-
+  const { actor } = useActor();
+  const { data: isAdmin = false } = useIsCallerAdmin(bookId);
+  const start = BigInt(getStartDate(timeframe).getTime()) * 1000000n;
+  const finance = useQuery({
+    queryKey: ["financialSummary", bookId, start.toString()],
+    queryFn: () =>
+      actor!.getFinancialSummary(bookId, start, BigInt(Date.now()) * 1000000n),
+    enabled: !!actor && isAdmin,
+  });
+  const periodInflows = finance.data?.receipts ?? 0;
+  const periodGrossMargin = finance.data?.grossProfit ?? 0;
   const timeframeLabel =
     DASH_TIMEFRAMES.find((t) => t.key === timeframe)?.label ?? "This Month";
 
@@ -559,71 +545,77 @@ export default function DashboardPage({
         data-ocid="dashboard.loading_state"
       >
         {/* Total Inflows */}
-        <Card data-ocid="dashboard.total-inflows.card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inflows</CardTitle>
-            <TrendingUp className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            {txLoading ? (
-              <Skeleton className="h-8 w-32" />
-            ) : txError ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refetchTx()}
-                className="text-destructive gap-1 p-0 h-auto"
-              >
-                <RefreshCw className="h-3 w-3" /> Retry
-              </Button>
-            ) : (
-              <>
-                <div className="text-2xl font-bold text-emerald-600">
-                  &#8358;{Math.round(periodInflows).toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Total Inflows (Sales + Credit Sales) &middot; {timeframeLabel}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Gross Margin */}
-        <Card data-ocid="dashboard.gross-margin.card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gross Margin</CardTitle>
-            <TrendingDown className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {txLoading ? (
-              <Skeleton className="h-8 w-32" />
-            ) : txError ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refetchTx()}
-                className="text-destructive gap-1 p-0 h-auto"
-              >
-                <RefreshCw className="h-3 w-3" /> Retry
-              </Button>
-            ) : (
-              <>
-                <div
-                  className={`text-2xl font-bold ${periodGrossMargin >= 0 ? "text-primary" : "text-destructive"}`}
+        {isAdmin && (
+          <Card data-ocid="dashboard.total-inflows.card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Inflows
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent>
+              {finance.isLoading ? (
+                <Skeleton className="h-8 w-32" />
+              ) : finance.isError ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => finance.refetch()}
+                  className="text-destructive gap-1 p-0 h-auto"
                 >
-                  &#8358;{Math.round(periodGrossMargin).toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Info className="h-3 w-3 flex-shrink-0" />
-                  Gross Margin &middot; Selling value minus cost value of items
-                  sold
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
+                  <RefreshCw className="h-3 w-3" /> Retry
+                </Button>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-emerald-600">
+                    &#8358;{Math.round(periodInflows).toLocaleString()}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Cash sales + recorded credit payments &middot;{" "}
+                    {timeframeLabel}
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+        {/* Gross Margin */}
+        {isAdmin && (
+          <Card data-ocid="dashboard.gross-margin.card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Gross Margin
+              </CardTitle>
+              <TrendingDown className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {finance.isLoading ? (
+                <Skeleton className="h-8 w-32" />
+              ) : finance.isError ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => finance.refetch()}
+                  className="text-destructive gap-1 p-0 h-auto"
+                >
+                  <RefreshCw className="h-3 w-3" /> Retry
+                </Button>
+              ) : (
+                <>
+                  <div
+                    className={`text-2xl font-bold ${periodGrossMargin >= 0 ? "text-primary" : "text-destructive"}`}
+                  >
+                    &#8358;{Math.round(periodGrossMargin).toLocaleString()}
+                  </div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Info className="h-3 w-3 flex-shrink-0" />
+                    Realized profit after cost recovery
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
         {/* Total Customers */}
         <Card data-ocid="dashboard.total-customers.card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -766,10 +758,43 @@ export default function DashboardPage({
         </Card>
       )}
 
+      <DebtPayments bookId={bookId} />
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Net margin</CardTitle>
+            <CardDescription>
+              Realized gross profit minus approved expenses · {timeframeLabel}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {finance.isError ? (
+              <p role="alert">
+                Could not load net margin.{" "}
+                <Button onClick={() => finance.refetch()}>Retry</Button>
+              </p>
+            ) : finance.isLoading ? (
+              <p>Loading…</p>
+            ) : (
+              <>
+                <p className="text-2xl font-bold">
+                  {naira(finance.data?.netProfit ?? 0)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Expenses: {naira(finance.data?.expenses ?? 0)} · Net margin:{" "}
+                  {(finance.data?.marginPercent ?? 0).toFixed(1)}%
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {/* Scheduled Summary + Profit by Product — each handles its own error */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <ScheduledSummaryCard bookId={bookId} />
-        <ProfitByProductCard bookId={bookId} onNavigate={onNavigate} />
+        {isAdmin && <ScheduledSummaryCard bookId={bookId} />}
+        {isAdmin && (
+          <ProfitByProductCard bookId={bookId} onNavigate={onNavigate} />
+        )}
       </div>
 
       {/* Recent Transactions */}
@@ -835,6 +860,7 @@ export default function DashboardPage({
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <TransactionLink transaction={tx} />
                           <TransactionTypeBadge type={tx.typeSubtype} />
                           <span className="text-xs text-muted-foreground">
                             {new Date(

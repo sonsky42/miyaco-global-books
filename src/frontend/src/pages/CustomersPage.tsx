@@ -39,6 +39,11 @@ import {
 import { useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { AgingBucket, Customer, Transaction } from "../backend";
+import {
+  DebtPayments,
+  TransactionLink,
+  useSettlements,
+} from "../components/LedgerControls";
 import { useActor } from "../hooks/useActor";
 import {
   useGetAgingReport,
@@ -130,23 +135,21 @@ function CustomerStatementModal({
     customerName,
   );
 
-  // Compute running balance (cumulative from oldest → newest)
+  const { data: settlements = [] } = useSettlements(bookId);
+  // Current invoice balance includes every recorded repayment and refund.
   const txWithBalance = useMemo(() => {
     if (!statement?.transactions) return [];
     const sorted = [...statement.transactions].sort(
       (a, b) => Number(a.date) - Number(b.date),
     );
-    let running = 0;
     return sorted.map((tx) => {
-      const t = (tx.typeSubtype ?? "").toLowerCase().replace(/[_-]/g, " ");
-      if (t.includes("credit sale")) {
-        running += tx.amount;
-      } else if (t.includes("sale")) {
-        running += 0; // paid immediately
-      }
-      return { ...tx, runningBalance: running };
+      return {
+        ...tx,
+        runningBalance:
+          settlements.find((s) => s.transaction.id === tx.id)?.balance ?? 0,
+      };
     });
-  }, [statement]);
+  }, [statement, settlements]);
 
   // Reverse for display (newest first)
   const displayTx = useMemo(
@@ -268,7 +271,7 @@ function CustomerStatementModal({
                           </th>
                           <th className="text-right px-3 py-2">Amount</th>
                           <th className="text-right px-3 py-2 hidden sm:table-cell">
-                            Balance
+                            Owed on invoice
                           </th>
                         </tr>
                       </thead>
@@ -286,6 +289,8 @@ function CustomerStatementModal({
                             </td>
                             <td className="px-3 py-2 hidden sm:table-cell max-w-[140px] truncate">
                               {tx.itemName || "—"}
+                              <br />
+                              <TransactionLink transaction={tx} />
                             </td>
                             <td className="px-3 py-2 text-right hidden md:table-cell">
                               {Number(tx.cartons) * Number(tx.unitsPerCarton)}
@@ -453,6 +458,8 @@ function AgingBucketRow({
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell text-muted-foreground truncate max-w-[120px]">
                       {tx.itemName || "—"}
+                      <br />
+                      <TransactionLink transaction={tx} />
                     </td>
                     <td
                       className={`px-4 py-2 text-right font-semibold ${colors.text}`}
@@ -683,6 +690,7 @@ function CustomerRow({
 
       {expanded && (
         <div className="px-4 pb-4 border-t bg-muted/20">
+          <DebtPayments bookId={customer.bookId} customerName={customer.name} />
           {isAdmin && (
             <div className="block pt-4 text-sm">
               <label htmlFor={photoInputId}>

@@ -1,5 +1,9 @@
 import { InternetIdentityProvider } from "@caffeineai/core-infrastructure";
-import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
@@ -18,7 +22,13 @@ declare global {
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onSuccess: (result) => {
-      if (result && typeof result === "object" && "__kind__" in result && result.__kind__ === "err") return;
+      if (
+        result &&
+        typeof result === "object" &&
+        "__kind__" in result &&
+        result.__kind__ === "err"
+      )
+        return;
       // A transaction affects inventory, customers, statements and reports together.
       return queryClient.invalidateQueries();
     },

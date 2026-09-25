@@ -7,19 +7,6 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface Location {
-    id: string;
-    name: string;
-    createdAt: Time;
-    createdBy: Principal;
-    bookId: string;
-}
-export interface UserProfile {
-    name: string;
-    email: string;
-    company: string;
-    phone: string;
-}
 export interface AccountingBook {
     id: string;
     members: Array<Principal>;
@@ -28,18 +15,70 @@ export interface AccountingBook {
     name: string;
     createdAt: Time;
 }
-export type Time = bigint;
-export interface TransactionErrorRate {
-    errorRate: number;
+export interface AgingBucket {
+    count: bigint;
+    bucketLabel: string;
+    totalAmount: number;
+    transactions: Array<Transaction>;
+}
+export interface AnalyticsExtended {
+    branchComparison: Array<BranchComparisonItem>;
+    approvalTurnaround: ApprovalTurnaround;
+    expenseByCategory: Array<ExpenseByCategoryItem>;
+    breakEven: BreakEven;
+    salesVelocity: Array<SalesVelocityItem>;
+    transactionErrorRate: TransactionErrorRate;
+    peakPeriods: Array<PeakPeriod>;
+    marginTrend: Array<MarginTrendPoint>;
+    revenueForecast: Array<ForecastPoint>;
+    customerCLV: Array<CustomerCLVItem>;
+    profitByProduct: Array<ProfitByProductItem>;
+    salesTrend: Array<SalesTrendPoint>;
+    userActivity: Array<UserActivityItem>;
+    stockTurnover: Array<StockTurnoverItem>;
+    cogsBreakdown: Array<CogsItem>;
+    repeatVsNewRatio: Array<RepeatVsNewItem>;
+    deadStock: Array<DeadStockItem>;
+    topCustomersByProfit: Array<TopCustomerByProfit>;
+    debtAging: Array<AgingBucket>;
+}
+export interface ApprovalTurnaround {
+    fastestHours: number;
+    slowestHours: number;
+    avgHours: number;
     totalApproved: bigint;
     totalRejected: bigint;
-    totalSubmitted: bigint;
 }
-export interface CustomerCLVItem {
-    customerName: string;
-    firstTransactionDate: bigint;
-    totalRevenue: number;
-    totalTransactions: bigint;
+export interface AuditLogEntry {
+    id: string;
+    action: string;
+    actorName: string;
+    bookId: string;
+    timestamp: bigint;
+    targetType: string;
+    details: string;
+    actorPrincipal: string;
+    targetId: string;
+}
+export interface BookSettings {
+    hideCostPricesFromNonAdmins: boolean;
+    baseCurrency: string;
+    scheduledSummaryFrequency: string;
+    bookId: string;
+    exchangeRate: number;
+    lastSummaryDate: bigint;
+}
+export interface BranchComparisonItem {
+    totalValue: number;
+    salesVolume: number;
+    totalItems: bigint;
+    locationName: string;
+}
+export interface BreakEven {
+    currentRevenue: number;
+    surplus: number;
+    totalExpenses: number;
+    requiredRevenue: number;
 }
 export interface CogsItem {
     grossProfit: number;
@@ -47,11 +86,25 @@ export interface CogsItem {
     itemName: string;
     totalRevenue: number;
 }
-export interface AgingBucket {
-    count: bigint;
-    bucketLabel: string;
-    totalAmount: number;
-    transactions: Array<Transaction>;
+export interface Customer {
+    id: string;
+    name: string;
+    createdAt: Time;
+    bookId: string;
+    email: string;
+    outstandingDebt: number;
+    totalSpent: number;
+    lastTransactionDate: Time;
+    brand: string;
+    phone: string;
+    transactions: Array<string>;
+    transactionCount: bigint;
+}
+export interface CustomerCLVItem {
+    customerName: string;
+    firstTransactionDate: bigint;
+    totalRevenue: number;
+    totalTransactions: bigint;
 }
 export interface CustomerStatement {
     customerName: string;
@@ -59,6 +112,206 @@ export interface CustomerStatement {
     totalPayments: number;
     totalPurchases: number;
     transactions: Array<Transaction>;
+}
+export interface DeadStockItem {
+    itemName: string;
+    daysSinceLastSale: bigint;
+    currentQty: bigint;
+}
+export interface DraftPurchaseOrder {
+    id: string;
+    status: string;
+    inventoryItemId: string;
+    suggestedQuantity: bigint;
+    bookId: string;
+    currentQuantity: bigint;
+    triggeredAt: bigint;
+    itemName: string;
+}
+export interface Expense {
+    id: string;
+    date: Time;
+    createdBy: Principal;
+    description: string;
+    bookId: string;
+    approved: boolean;
+    category: string;
+    amount: number;
+}
+export interface ExpenseByCategoryItem {
+    pct: number;
+    category: string;
+    amount: number;
+}
+export interface FinancialSummary {
+    grossProfit: number;
+    expenses: number;
+    marginPercent: number;
+    receipts: number;
+    netProfit: number;
+}
+export interface ForecastPoint {
+    period: string;
+    projected: number;
+}
+export interface InventoryItem {
+    id: string;
+    supplier: string;
+    name: string;
+    createdAt: Time;
+    sellingPrice: number;
+    bookId: string;
+    variants: Array<string>;
+    productType: string;
+    highestEverQuantity: bigint;
+    approved: boolean;
+    locationId: string;
+    unitsPerCarton: bigint;
+    quantity: bigint;
+    brand: string;
+    costPrice: number;
+}
+export interface InventoryTransfer {
+    id: string;
+    itemId: string;
+    toLocationId: string;
+    unit: string;
+    bookId: string;
+    fromLocationId: string;
+    itemName: string;
+    quantity: bigint;
+    transferredAt: Time;
+    transferredBy: Principal;
+}
+export interface JoinRequest {
+    status: ApprovalStatus;
+    user: Principal;
+    bookId: string;
+    requestedAt: Time;
+}
+export type JoinRequestResult = {
+    __kind__: "ok";
+    ok: string;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface Location {
+    id: string;
+    name: string;
+    createdAt: Time;
+    createdBy: Principal;
+    bookId: string;
+}
+export interface MarginTrendPoint {
+    period: string;
+    grossMargin: number;
+    grossMarginPct: number;
+}
+export type MutResult = {
+    __kind__: "ok";
+    ok: string;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface Payment {
+    id: string;
+    method: string;
+    date: bigint;
+    note: string;
+    recordedBy: Principal;
+    amount: number;
+    transactionId: string;
+}
+export interface PeakPeriod {
+    period: string;
+    rank: bigint;
+    volume: number;
+}
+export interface ProductDetails {
+    description: string;
+    image: string;
+}
+export interface ProfitByProductItem {
+    grossProfit: number;
+    itemName: string;
+    units: bigint;
+    margin: number;
+}
+export interface RepeatVsNewItem {
+    repeatCount: bigint;
+    repeatPct: number;
+    period: string;
+    newCount: bigint;
+}
+export interface Revision {
+    action: string;
+    actorName: string;
+    after: Transaction;
+    before: Transaction;
+    timestamp: bigint;
+    actorPrincipal: Principal;
+    revision: bigint;
+    reason: string;
+}
+export interface SalesTrendPoint {
+    revenue: number;
+    period: string;
+    cost: number;
+    profit: number;
+}
+export interface SalesVelocityItem {
+    avgUnitsPerDay: number;
+    itemName: string;
+    totalUnits: bigint;
+}
+export interface ScheduledSummary {
+    id: string;
+    topItemNames: Array<string>;
+    grossMargin: number;
+    generatedAt: bigint;
+    topCustomerNames: Array<string>;
+    bookId: string;
+    totalExpenses: number;
+    periodLabel: string;
+    totalInflows: number;
+    transactionCount: bigint;
+}
+export interface Settlement {
+    balance: number;
+    payments: Array<Payment>;
+    paid: number;
+    transaction: Transaction;
+    voided: boolean;
+    history: Array<Revision>;
+    refundDue: number;
+    profit: number;
+    revision: bigint;
+}
+export interface StockPolicy {
+    leadDays: bigint;
+    minimumUnits: bigint;
+    targetUnits: bigint;
+    enabled: boolean;
+}
+export interface StockTurnoverItem {
+    turnoverRate: number;
+    timesRestocked: bigint;
+    itemName: string;
+}
+export interface SystemSettings {
+    multiStore: boolean;
+    exchangeRate: number;
+    companyInfo: string;
+    taxRate: number;
+    currencyRounding: bigint;
+}
+export type Time = bigint;
+export interface TopCustomerByProfit {
+    customerName: string;
+    grossProfit: number;
+    totalRevenue: number;
 }
 export interface Transaction {
     id: string;
@@ -84,48 +337,11 @@ export interface Transaction {
     amount: number;
     pricePerCarton: number;
 }
-export interface InventoryItem {
-    id: string;
-    supplier: string;
-    name: string;
-    createdAt: Time;
-    sellingPrice: number;
-    bookId: string;
-    variants: Array<string>;
-    productType: string;
-    highestEverQuantity: bigint;
-    approved: boolean;
-    locationId: string;
-    unitsPerCarton: bigint;
-    quantity: bigint;
-    brand: string;
-    costPrice: number;
-}
-export interface BookSettings {
-    hideCostPricesFromNonAdmins: boolean;
-    baseCurrency: string;
-    scheduledSummaryFrequency: string;
-    bookId: string;
-    exchangeRate: number;
-    lastSummaryDate: bigint;
-}
-export interface SystemSettings {
-    multiStore: boolean;
-    exchangeRate: number;
-    companyInfo: string;
-    taxRate: number;
-    currencyRounding: bigint;
-}
-export interface ProfitByProductItem {
-    grossProfit: number;
-    itemName: string;
-    units: bigint;
-    margin: number;
-}
-export interface MarginTrendPoint {
-    period: string;
-    grossMargin: number;
-    grossMarginPct: number;
+export interface TransactionErrorRate {
+    errorRate: number;
+    totalApproved: bigint;
+    totalRejected: bigint;
+    totalSubmitted: bigint;
 }
 export interface UserActivityItem {
     userName: string;
@@ -133,180 +349,11 @@ export interface UserActivityItem {
     principalText: string;
     lastActionDate: bigint;
 }
-export type JoinRequestResult = {
-    __kind__: "ok";
-    ok: string;
-} | {
-    __kind__: "err";
-    err: string;
-};
-export interface AnalyticsExtended {
-    branchComparison: Array<BranchComparisonItem>;
-    approvalTurnaround: ApprovalTurnaround;
-    expenseByCategory: Array<ExpenseByCategoryItem>;
-    breakEven: BreakEven;
-    salesVelocity: Array<SalesVelocityItem>;
-    transactionErrorRate: TransactionErrorRate;
-    peakPeriods: Array<PeakPeriod>;
-    marginTrend: Array<MarginTrendPoint>;
-    revenueForecast: Array<ForecastPoint>;
-    customerCLV: Array<CustomerCLVItem>;
-    profitByProduct: Array<ProfitByProductItem>;
-    salesTrend: Array<SalesTrendPoint>;
-    userActivity: Array<UserActivityItem>;
-    stockTurnover: Array<StockTurnoverItem>;
-    cogsBreakdown: Array<CogsItem>;
-    repeatVsNewRatio: Array<RepeatVsNewItem>;
-    deadStock: Array<DeadStockItem>;
-    topCustomersByProfit: Array<TopCustomerByProfit>;
-    debtAging: Array<AgingBucket>;
-}
-export interface TopCustomerByProfit {
-    customerName: string;
-    grossProfit: number;
-    totalRevenue: number;
-}
-export interface RepeatVsNewItem {
-    repeatCount: bigint;
-    repeatPct: number;
-    period: string;
-    newCount: bigint;
-}
-export interface BreakEven {
-    currentRevenue: number;
-    surplus: number;
-    totalExpenses: number;
-    requiredRevenue: number;
-}
-export interface ForecastPoint {
-    period: string;
-    projected: number;
-}
-export interface ExpenseByCategoryItem {
-    pct: number;
-    category: string;
-    amount: number;
-}
-export interface AuditLogEntry {
-    id: string;
-    action: string;
-    actorName: string;
-    bookId: string;
-    timestamp: bigint;
-    targetType: string;
-    details: string;
-    actorPrincipal: string;
-    targetId: string;
-}
-export interface Expense {
-    id: string;
-    date: Time;
-    createdBy: Principal;
-    description: string;
-    bookId: string;
-    approved: boolean;
-    category: string;
-    amount: number;
-}
-export interface Customer {
-    id: string;
+export interface UserProfile {
     name: string;
-    createdAt: Time;
-    bookId: string;
     email: string;
-    outstandingDebt: number;
-    totalSpent: number;
-    lastTransactionDate: Time;
-    brand: string;
+    company: string;
     phone: string;
-    transactions: Array<string>;
-    transactionCount: bigint;
-}
-export interface ApprovalTurnaround {
-    fastestHours: number;
-    slowestHours: number;
-    avgHours: number;
-    totalApproved: bigint;
-    totalRejected: bigint;
-}
-export interface SalesVelocityItem {
-    avgUnitsPerDay: number;
-    itemName: string;
-    totalUnits: bigint;
-}
-export interface DeadStockItem {
-    itemName: string;
-    daysSinceLastSale: bigint;
-    currentQty: bigint;
-}
-export interface ScheduledSummary {
-    id: string;
-    topItemNames: Array<string>;
-    grossMargin: number;
-    generatedAt: bigint;
-    topCustomerNames: Array<string>;
-    bookId: string;
-    totalExpenses: number;
-    periodLabel: string;
-    totalInflows: number;
-    transactionCount: bigint;
-}
-export type MutResult = {
-    __kind__: "ok";
-    ok: string;
-} | {
-    __kind__: "err";
-    err: string;
-};
-export interface DraftPurchaseOrder {
-    id: string;
-    status: string;
-    inventoryItemId: string;
-    suggestedQuantity: bigint;
-    bookId: string;
-    currentQuantity: bigint;
-    triggeredAt: bigint;
-    itemName: string;
-}
-export interface BranchComparisonItem {
-    totalValue: number;
-    salesVolume: number;
-    totalItems: bigint;
-    locationName: string;
-}
-export interface InventoryTransfer {
-    id: string;
-    itemId: string;
-    toLocationId: string;
-    unit: string;
-    bookId: string;
-    fromLocationId: string;
-    itemName: string;
-    quantity: bigint;
-    transferredAt: Time;
-    transferredBy: Principal;
-}
-export interface SalesTrendPoint {
-    revenue: number;
-    period: string;
-    cost: number;
-    profit: number;
-}
-export interface StockTurnoverItem {
-    turnoverRate: number;
-    timesRestocked: bigint;
-    itemName: string;
-}
-export interface PeakPeriod {
-    period: string;
-    rank: bigint;
-    volume: number;
-}
-export interface JoinRequest {
-    status: ApprovalStatus;
-    user: Principal;
-    bookId: string;
-    requestedAt: Time;
 }
 export enum ApprovalStatus {
     pending = "pending",
@@ -323,6 +370,8 @@ export interface backendInterface {
     addExpense(expense: Expense): Promise<MutResult>;
     addInventoryItem(item: InventoryItem): Promise<MutResult>;
     addTransaction(transaction: Transaction): Promise<MutResult>;
+    amendExpense(updated: Expense, previousAmount: number, reason: string, remove: boolean): Promise<MutResult>;
+    amendTransaction(updated: Transaction, expectedRevision: bigint, reason: string): Promise<MutResult>;
     approveExpense(expenseId: string): Promise<MutResult>;
     approveInventoryItem(itemId: string): Promise<MutResult>;
     approveJoinRequest(requestId: string, makeAdmin: boolean): Promise<JoinRequestResult>;
@@ -376,6 +425,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCustomerNames(bookId: string): Promise<Array<string>>;
+    getCustomerPhoto(bookId: string, name: string): Promise<string>;
     getCustomerStatement(bookId: string, customerName: string): Promise<{
         __kind__: "ok";
         ok: CustomerStatement;
@@ -404,6 +454,7 @@ export interface backendInterface {
         err: string;
     }>;
     getExpenses(bookId: string): Promise<Array<Expense>>;
+    getFinancialSummary(bookId: string, start: bigint, end: bigint): Promise<FinancialSummary>;
     getGrossMarginByPeriod(bookId: string, startTime: bigint, endTime: bigint): Promise<number>;
     getInventory(bookId: string): Promise<Array<InventoryItem>>;
     getInventoryByLocation(bookId: string, locationId: string): Promise<Array<InventoryItem>>;
@@ -434,7 +485,10 @@ export interface backendInterface {
     getPendingInventory(bookId: string): Promise<Array<InventoryItem>>;
     getPendingJoinRequests(): Promise<Array<JoinRequest>>;
     getPendingTransactions(bookId: string): Promise<Array<Transaction>>;
+    getProductDetails(itemId: string): Promise<ProductDetails>;
     getRecentTransactions(bookId: string): Promise<Array<Transaction>>;
+    getSettlements(bookId: string): Promise<Array<Settlement>>;
+    getStockPolicy(itemId: string): Promise<StockPolicy>;
     getSystemSettings(): Promise<SystemSettings | null>;
     getTopItemsAndCustomers(bookId: string): Promise<{
         topItems: Array<{
@@ -449,6 +503,7 @@ export interface backendInterface {
             totalSpent: number;
         }>;
     }>;
+    getTransactionDetail(id: string): Promise<Settlement>;
     getTransactionStatistics(bookId: string): Promise<{
         sales: number;
         creditSales: number;
@@ -461,6 +516,7 @@ export interface backendInterface {
     getUserDisplayName(user: Principal): Promise<string>;
     getUserJoinRequests(): Promise<Array<[string, ApprovalStatus]>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getVoidedTransactions(bookId: string): Promise<Array<Settlement>>;
     initializeAccessControl(): Promise<void>;
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
@@ -468,6 +524,8 @@ export interface backendInterface {
     isCallerBookMember(bookId: string): Promise<boolean>;
     isCallerPermanentAdmin(bookId: string): Promise<boolean>;
     listApprovals(): Promise<Array<[Principal, ApprovalStatus]>>;
+    recordCreditPayment(id: string, paymentId: string, amount: number, method: string, note: string): Promise<MutResult>;
+    refundCreditPayment(id: string, paymentId: string, amount: number, reason: string): Promise<MutResult>;
     rejectExpense(expenseId: string): Promise<MutResult>;
     rejectInventoryItem(itemId: string): Promise<MutResult>;
     rejectJoinRequest(requestId: string): Promise<JoinRequestResult>;
@@ -481,6 +539,9 @@ export interface backendInterface {
     searchCustomers(bookId: string, searchTerm: string): Promise<Array<Customer>>;
     searchInventory(bookId: string, searchTerm: string): Promise<Array<InventoryItem>>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
+    setCustomerPhoto(bookId: string, name: string, photo: string): Promise<void>;
+    setProductDetails(itemId: string, details: ProductDetails): Promise<MutResult>;
+    setStockPolicy(itemId: string, policy: StockPolicy): Promise<MutResult>;
     transferInventory(bookId: string, itemId: string, fromLocationId: string, toLocationId: string, quantity: bigint, unit: string): Promise<MutResult>;
     updateBookSettings(bookId: string, settings: BookSettings): Promise<{
         __kind__: "ok";
@@ -492,4 +553,5 @@ export interface backendInterface {
     updateCustomer(customer: Customer): Promise<MutResult>;
     updateInventoryItem(item: InventoryItem): Promise<MutResult>;
     updateSystemSettings(settings: SystemSettings): Promise<void>;
+    voidTransaction(id: string, expectedRevision: bigint, reason: string): Promise<MutResult>;
 }

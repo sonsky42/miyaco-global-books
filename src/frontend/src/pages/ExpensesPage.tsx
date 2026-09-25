@@ -29,8 +29,13 @@ import { CalendarIcon, Plus, Receipt } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Expense } from "../backend";
+import { ExpenseCorrection } from "../components/LedgerControls";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useAddExpense, useGetExpenses } from "../hooks/useQueries";
+import {
+  useAddExpense,
+  useGetExpenses,
+  useIsCallerAdmin,
+} from "../hooks/useQueries";
 
 interface ExpensesPageProps {
   bookId: string;
@@ -39,6 +44,7 @@ interface ExpensesPageProps {
 export default function ExpensesPage({ bookId }: ExpensesPageProps) {
   const { data: expenses = [], isLoading } = useGetExpenses(bookId);
   const addExpense = useAddExpense();
+  const { data: admin } = useIsCallerAdmin(bookId);
   const { identity } = useInternetIdentity();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [date, setDate] = useState<Date>(new Date());
@@ -74,6 +80,7 @@ export default function ExpensesPage({ bookId }: ExpensesPageProps) {
         toast.success(result.ok);
       } else {
         toast.error(result.err);
+        return;
       }
       setDialogOpen(false);
       setFormData({
@@ -90,6 +97,8 @@ export default function ExpensesPage({ bookId }: ExpensesPageProps) {
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
+  if (!admin)
+    return <p>Expense records are restricted to book administrators.</p>;
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -246,6 +255,7 @@ export default function ExpensesPage({ bookId }: ExpensesPageProps) {
                       <p className="text-lg font-bold text-destructive">
                         ₦{expense.amount.toLocaleString()}
                       </p>
+                      <ExpenseCorrection expense={expense} />
                     </div>
                   </div>
                 </div>

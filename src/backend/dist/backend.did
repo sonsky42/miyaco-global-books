@@ -71,6 +71,25 @@ type StockTurnoverItem =
    timesRestocked: nat;
    turnoverRate: float64;
  };
+type StockPolicy =
+ record {
+   enabled: bool;
+   leadDays: nat;
+   minimumUnits: nat;
+   targetUnits: nat;
+ };
+type Settlement =
+ record {
+   balance: float64;
+   history: vec Revision;
+   paid: float64;
+   payments: vec Payment;
+   profit: float64;
+   refundDue: float64;
+   revision: nat;
+   transaction: Transaction;
+   voided: bool;
+ };
 type ScheduledSummary = 
  record {
    bookId: text;
@@ -97,6 +116,17 @@ type SalesTrendPoint =
    profit: float64;
    revenue: float64;
  };
+type Revision =
+ record {
+   action: text;
+   actorName: text;
+   actorPrincipal: principal;
+   after: Transaction;
+   before: Transaction;
+   reason: text;
+   revision: nat;
+   timestamp: int;
+ };
 type RepeatVsNewItem = 
  record {
    newCount: nat;
@@ -111,11 +141,26 @@ type ProfitByProductItem =
    margin: float64;
    units: nat;
  };
+type ProductDetails =
+ record {
+   description: text;
+   image: text;
+ };
 type PeakPeriod = 
  record {
    period: text;
    rank: nat;
    volume: float64;
+ };
+type Payment =
+ record {
+   amount: float64;
+   date: int;
+   id: text;
+   method: text;
+   note: text;
+   recordedBy: principal;
+   transactionId: text;
  };
 type MutResult = 
  variant {
@@ -183,6 +228,14 @@ type ForecastPoint =
  record {
    period: text;
    projected: float64;
+ };
+type FinancialSummary =
+ record {
+   expenses: float64;
+   grossProfit: float64;
+   marginPercent: float64;
+   netProfit: float64;
+   receipts: float64;
  };
 type ExpenseByCategoryItem = 
  record {
@@ -347,6 +400,10 @@ service : {
   addExpense: (expense: Expense) -> (MutResult);
   addInventoryItem: (item: InventoryItem) -> (MutResult);
   addTransaction: (transaction: Transaction) -> (MutResult);
+  amendExpense: (updated: Expense, previousAmount: float64, reason: text,
+   remove: bool) -> (MutResult);
+  amendTransaction: (updated: Transaction, expectedRevision: nat, reason:
+   text) -> (MutResult);
   approveExpense: (expenseId: text) -> (MutResult);
   approveInventoryItem: (itemId: text) -> (MutResult);
   approveJoinRequest: (requestId: text, makeAdmin: bool) ->
@@ -397,6 +454,7 @@ service : {
   getCallerUserProfile: () -> (opt UserProfile) query;
   getCallerUserRole: () -> (UserRole) query;
   getCustomerNames: (bookId: text) -> (vec text) query;
+  getCustomerPhoto: (bookId: text, name: text) -> (text) query;
   getCustomerStatement: (bookId: text, customerName: text) ->
    (variant {
       err: text;
@@ -426,6 +484,8 @@ service : {
       ok: vec DraftPurchaseOrder;
     }) query;
   getExpenses: (bookId: text) -> (vec Expense) query;
+  getFinancialSummary: (bookId: text, start: int, end: int) ->
+   (FinancialSummary) query;
   getGrossMarginByPeriod: (bookId: text, startTime: int, endTime: int) ->
    (float64) query;
   getInventory: (bookId: text) -> (vec InventoryItem) query;
@@ -460,7 +520,10 @@ service : {
   getPendingInventory: (bookId: text) -> (vec InventoryItem) query;
   getPendingJoinRequests: () -> (vec JoinRequest) query;
   getPendingTransactions: (bookId: text) -> (vec Transaction) query;
+  getProductDetails: (itemId: text) -> (ProductDetails) query;
   getRecentTransactions: (bookId: text) -> (vec Transaction) query;
+  getSettlements: (bookId: text) -> (vec Settlement) query;
+  getStockPolicy: (itemId: text) -> (StockPolicy) query;
   getSystemSettings: () -> (opt SystemSettings) query;
   getTopItemsAndCustomers: (bookId: text) ->
    (record {
@@ -479,6 +542,7 @@ service : {
           totalUnitsSold: nat;
         };
     }) query;
+  getTransactionDetail: (id: text) -> (Settlement) query;
   getTransactionStatistics: (bookId: text) ->
    (record {
       creditPurchases: float64;
@@ -496,6 +560,7 @@ service : {
                                     ApprovalStatus;
                                   }) query;
   getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getVoidedTransactions: (bookId: text) -> (vec Settlement) query;
   initializeAccessControl: () -> ();
   isCallerAdmin: () -> (bool) query;
   isCallerApproved: () -> (bool) query;
@@ -506,6 +571,10 @@ service : {
                               principal;
                               ApprovalStatus;
                             }) query;
+  recordCreditPayment: (id: text, paymentId: text, amount: float64, method:
+   text, note: text) -> (MutResult);
+  refundCreditPayment: (id: text, paymentId: text, amount: float64, reason:
+   text) -> (MutResult);
   rejectExpense: (expenseId: text) -> (MutResult);
   rejectInventoryItem: (itemId: text) -> (MutResult);
   rejectJoinRequest: (requestId: text) -> (JoinRequestResult);
@@ -521,6 +590,9 @@ service : {
   searchInventory: (bookId: text, searchTerm: text) ->
    (vec InventoryItem) query;
   setApproval: (user: principal, status: ApprovalStatus) -> ();
+  setCustomerPhoto: (bookId: text, name: text, photo: text) -> ();
+  setProductDetails: (itemId: text, details: ProductDetails) -> (MutResult);
+  setStockPolicy: (itemId: text, policy: StockPolicy) -> (MutResult);
   transferInventory: (bookId: text, itemId: text, fromLocationId: text,
    toLocationId: text, quantity: nat, unit: text) -> (MutResult);
   updateBookSettings: (bookId: text, settings: BookSettings) ->
@@ -531,4 +603,6 @@ service : {
   updateCustomer: (customer: Customer) -> (MutResult);
   updateInventoryItem: (item: InventoryItem) -> (MutResult);
   updateSystemSettings: (settings: SystemSettings) -> ();
+  voidTransaction: (id: text, expectedRevision: nat, reason: text) ->
+   (MutResult);
 }

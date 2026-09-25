@@ -57,7 +57,7 @@ export default function DashboardLayout({ booksError }: DashboardLayoutProps) {
     isError: booksQueryError,
     refetch: refetchBooks,
   } = useGetUserBooks();
-  const { data: isAdmin } = useIsCallerAdmin();
+  const { data: isAdmin } = useIsCallerAdmin(selectedBookId);
 
   const handleLogout = async () => {
     await clear();
@@ -141,7 +141,7 @@ export default function DashboardLayout({ booksError }: DashboardLayoutProps) {
       name: "Expenses",
       icon: Receipt,
       page: "expenses" as Page,
-      adminOnly: false,
+      adminOnly: true,
     },
     {
       name: "Customers",

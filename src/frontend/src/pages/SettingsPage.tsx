@@ -418,14 +418,14 @@ function BookSettingsTab({ bookId }: { bookId: string }) {
                 Hide Cost Prices from Non-Admin Staff
               </p>
               <p className="text-xs text-muted-foreground">
-                When enabled, sales staff will see "—" instead of cost prices in
-                inventory and transactions
+                Always enforced: staff cannot retrieve costs, profits, purchase
+                figures or expense totals.
               </p>
             </div>
             <Switch
               data-ocid="book_settings.hide_cost_prices.switch"
-              checked={hideCostPrices}
-              onCheckedChange={setHideCostPrices}
+              checked={true}
+              disabled
               className="shrink-0 mt-0.5"
             />
           </div>
@@ -623,7 +623,7 @@ export default function SettingsPage({ bookId }: SettingsPageProps) {
                   <Users className="h-4 w-4" />
                   Book Members
                 </TabsTrigger>
-                {isPermanentAdmin && (
+                {isAdmin && (
                   <TabsTrigger
                     value="audit"
                     className="gap-2"
@@ -778,6 +778,11 @@ export default function SettingsPage({ bookId }: SettingsPageProps) {
             </Card>
           </TabsContent>
 
+          {isAdmin && (
+            <TabsContent value="audit" className="mt-6">
+              <AuditLogTab bookId={bookId} />
+            </TabsContent>
+          )}
           {isPermanentAdmin && (
             <>
               {/* Book Settings Tab */}
@@ -793,11 +798,6 @@ export default function SettingsPage({ bookId }: SettingsPageProps) {
               {/* Members Tab */}
               <TabsContent value="members" className="space-y-6 mt-6">
                 {currentBook && <BookMembersManager book={currentBook} />}
-              </TabsContent>
-
-              {/* Audit Log Tab — permanent admin only */}
-              <TabsContent value="audit" className="mt-6">
-                <AuditLogTab bookId={bookId} />
               </TabsContent>
 
               {/* Danger Zone Tab */}

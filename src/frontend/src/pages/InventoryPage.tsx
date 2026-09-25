@@ -42,6 +42,7 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { InventoryItem, Location } from "../backend";
+import { ProductDetailsDialog } from "../components/ProductDetailsDialog";
 import {
   useAddInventoryItem,
   useCreateLocation,
@@ -199,8 +200,7 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
   const baseCurrency = "NGN";
   const exchangeRate = bookSettings?.exchangeRate ?? 0;
   const symbol = currencySymbol(baseCurrency);
-  const hideCostPrices =
-    bookSettings?.hideCostPricesFromNonAdmins === true && !isAdmin;
+  const hideCostPrices = !isAdmin;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -291,15 +291,19 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
       brand: formData.brand,
       productType: formData.productType,
       supplier: formData.supplier,
-      quantity: BigInt(formData.quantity) * BigInt(formData.unitsPerCarton || "1"),
+      quantity:
+        BigInt(formData.quantity) * BigInt(formData.unitsPerCarton || "1"),
       unitsPerCarton: BigInt(formData.unitsPerCarton || "1"),
-      costPrice: Number.parseFloat(formData.costPrice) * (formData.currency === "USD" ? exchangeRate : 1),
+      costPrice:
+        Number.parseFloat(formData.costPrice) *
+        (formData.currency === "USD" ? exchangeRate : 1),
       sellingPrice: 0,
       variants: [],
       bookId,
       approved: false,
       locationId: defaultLocationId,
-      highestEverQuantity: BigInt(formData.quantity) * BigInt(formData.unitsPerCarton || "1"),
+      highestEverQuantity:
+        BigInt(formData.quantity) * BigInt(formData.unitsPerCarton || "1"),
       createdAt: BigInt(Date.now()) * BigInt(1_000_000),
     };
 
@@ -577,210 +581,217 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
             </Dialog>
           )}
 
-          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                className="gap-2"
-                data-ocid="inventory.add.open_modal_button"
+          {isAdmin && (
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  className="gap-2"
+                  data-ocid="inventory.add.open_modal_button"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Item
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                className="max-w-2xl"
+                data-ocid="inventory.add.dialog"
               >
-                <Plus className="h-4 w-4" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent
-              className="max-w-2xl"
-              data-ocid="inventory.add.dialog"
-            >
-              <DialogHeader>
-                <DialogTitle>Add Inventory Item</DialogTitle>
-                <DialogDescription>
-                  {isAdmin
-                    ? "Fill in product details. A purchase record will be auto-created."
-                    : "Your submission will be reviewed by an admin before being added."}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddFormSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-name">Item Name *</Label>
-                    <Input
-                      id="inv-name"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      required
-                      data-ocid="inventory.add.name.input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-brand">Brand *</Label>
-                    <Input
-                      id="inv-brand"
-                      value={formData.brand}
-                      onChange={(e) =>
-                        setFormData({ ...formData, brand: e.target.value })
-                      }
-                      required
-                      data-ocid="inventory.add.brand.input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-product-type">Product Type *</Label>
-                    <Input
-                      id="inv-product-type"
-                      value={formData.productType}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          productType: e.target.value,
-                        })
-                      }
-                      required
-                      data-ocid="inventory.add.product_type.input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-supplier">Supplier</Label>
-                    <Input
-                      id="inv-supplier"
-                      value={formData.supplier}
-                      onChange={(e) =>
-                        setFormData({ ...formData, supplier: e.target.value })
-                      }
-                      data-ocid="inventory.add.supplier.input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-qty">Quantity (Cartons) *</Label>
-                    <Input
-                      id="inv-qty"
-                      type="number"
-                      min="0"
-                      value={formData.quantity}
-                      onChange={(e) =>
-                        setFormData({ ...formData, quantity: e.target.value })
-                      }
-                      required
-                      data-ocid="inventory.add.quantity.input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-upc">Units per Carton *</Label>
-                    <Input
-                      id="inv-upc"
-                      type="number"
-                      min="1"
-                      value={formData.unitsPerCarton}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          unitsPerCarton: e.target.value,
-                        })
-                      }
-                      required
-                      data-ocid="inventory.add.units_per_carton.input"
-                    />
-                  </div>
-                  {/* Currency selector */}
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-currency">Currency</Label>
-                    <Select
-                      value={formData.currency}
-                      onValueChange={(v) =>
-                        setFormData({ ...formData, currency: v })
-                      }
-                    >
-                      <SelectTrigger
-                        id="inv-currency"
-                        data-ocid="inventory.add.currency.select"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NGN">NGN (₦)</SelectItem>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {/* Cost price with NGN equivalent helper */}
-                  <div className="space-y-2">
-                    <Label htmlFor="inv-cost">
-                      Cost Price per Unit ({formSymbol}) *
-                    </Label>
-                    <Input
-                      id="inv-cost"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.costPrice}
-                      onChange={(e) =>
-                        setFormData({ ...formData, costPrice: e.target.value })
-                      }
-                      required
-                      data-ocid="inventory.add.cost_price.input"
-                    />
-                    {ngnEquivalent !== null && formData.costPrice && (
-                      <p className="text-xs text-muted-foreground">
-                        ≈ ₦
-                        {ngnEquivalent.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}{" "}
-                        (at ₦{exchangeRate.toLocaleString()}/USD)
-                      </p>
-                    )}
-                  </div>
-                  {/* Live total cost preview */}
-                  {formData.quantity &&
-                    formData.unitsPerCarton &&
-                    formData.costPrice && (
-                      <div className="space-y-2">
-                        <Label>Estimated Total Cost</Label>
-                        <div className="h-10 px-3 flex items-center rounded-md border border-input bg-muted/40">
-                          <span className="text-sm font-semibold text-primary">
-                            {formSymbol}
-                            {totalCost.toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  {isAdmin && locations.length > 0 && (
+                <DialogHeader>
+                  <DialogTitle>Add Inventory Item</DialogTitle>
+                  <DialogDescription>
+                    {isAdmin
+                      ? "Fill in product details. A purchase record will be auto-created."
+                      : "Your submission will be reviewed by an admin before being added."}
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddFormSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="inv-location">Location</Label>
+                      <Label htmlFor="inv-name">Item Name *</Label>
+                      <Input
+                        id="inv-name"
+                        value={formData.name}
+                        onChange={(e) =>
+                          setFormData({ ...formData, name: e.target.value })
+                        }
+                        required
+                        data-ocid="inventory.add.name.input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-brand">Brand *</Label>
+                      <Input
+                        id="inv-brand"
+                        value={formData.brand}
+                        onChange={(e) =>
+                          setFormData({ ...formData, brand: e.target.value })
+                        }
+                        required
+                        data-ocid="inventory.add.brand.input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-product-type">Product Type *</Label>
+                      <Input
+                        id="inv-product-type"
+                        value={formData.productType}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            productType: e.target.value,
+                          })
+                        }
+                        required
+                        data-ocid="inventory.add.product_type.input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-supplier">Supplier</Label>
+                      <Input
+                        id="inv-supplier"
+                        value={formData.supplier}
+                        onChange={(e) =>
+                          setFormData({ ...formData, supplier: e.target.value })
+                        }
+                        data-ocid="inventory.add.supplier.input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-qty">Quantity (Cartons) *</Label>
+                      <Input
+                        id="inv-qty"
+                        type="number"
+                        min="0"
+                        value={formData.quantity}
+                        onChange={(e) =>
+                          setFormData({ ...formData, quantity: e.target.value })
+                        }
+                        required
+                        data-ocid="inventory.add.quantity.input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-upc">Units per Carton *</Label>
+                      <Input
+                        id="inv-upc"
+                        type="number"
+                        min="1"
+                        value={formData.unitsPerCarton}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            unitsPerCarton: e.target.value,
+                          })
+                        }
+                        required
+                        data-ocid="inventory.add.units_per_carton.input"
+                      />
+                    </div>
+                    {/* Currency selector */}
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-currency">Currency</Label>
                       <Select
-                        value={formData.locationId}
+                        value={formData.currency}
                         onValueChange={(v) =>
-                          setFormData({ ...formData, locationId: v })
+                          setFormData({ ...formData, currency: v })
                         }
                       >
                         <SelectTrigger
-                          id="inv-location"
-                          data-ocid="inventory.add.location.select"
+                          id="inv-currency"
+                          data-ocid="inventory.add.currency.select"
                         >
-                          <SelectValue placeholder="Select location" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {locations.map((l) => (
-                            <SelectItem key={l.id} value={l.id}>
-                              {l.name}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="NGN">NGN (₦)</SelectItem>
+                          <SelectItem value="USD">USD ($)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={addItem.isPending}
-                  data-ocid="inventory.add.submit_button"
-                >
-                  {addItem.isPending ? "Saving..." : "Review Total Cost & Save"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+                    {/* Cost price with NGN equivalent helper */}
+                    <div className="space-y-2">
+                      <Label htmlFor="inv-cost">
+                        Cost Price per Unit ({formSymbol}) *
+                      </Label>
+                      <Input
+                        id="inv-cost"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.costPrice}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            costPrice: e.target.value,
+                          })
+                        }
+                        required
+                        data-ocid="inventory.add.cost_price.input"
+                      />
+                      {ngnEquivalent !== null && formData.costPrice && (
+                        <p className="text-xs text-muted-foreground">
+                          ≈ ₦
+                          {ngnEquivalent.toLocaleString(undefined, {
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          (at ₦{exchangeRate.toLocaleString()}/USD)
+                        </p>
+                      )}
+                    </div>
+                    {/* Live total cost preview */}
+                    {formData.quantity &&
+                      formData.unitsPerCarton &&
+                      formData.costPrice && (
+                        <div className="space-y-2">
+                          <Label>Estimated Total Cost</Label>
+                          <div className="h-10 px-3 flex items-center rounded-md border border-input bg-muted/40">
+                            <span className="text-sm font-semibold text-primary">
+                              {formSymbol}
+                              {totalCost.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    {isAdmin && locations.length > 0 && (
+                      <div className="space-y-2">
+                        <Label htmlFor="inv-location">Location</Label>
+                        <Select
+                          value={formData.locationId}
+                          onValueChange={(v) =>
+                            setFormData({ ...formData, locationId: v })
+                          }
+                        >
+                          <SelectTrigger
+                            id="inv-location"
+                            data-ocid="inventory.add.location.select"
+                          >
+                            <SelectValue placeholder="Select location" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {locations.map((l) => (
+                              <SelectItem key={l.id} value={l.id}>
+                                {l.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={addItem.isPending}
+                    data-ocid="inventory.add.submit_button"
+                  >
+                    {addItem.isPending
+                      ? "Saving..."
+                      : "Review Total Cost & Save"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -1029,7 +1040,10 @@ export default function InventoryPage({ bookId, isAdmin }: InventoryPageProps) {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-lg leading-tight">
-                                {item.name}
+                                <ProductDetailsDialog
+                                  item={item}
+                                  admin={isAdmin}
+                                />
                               </h3>
                               {isLowStock && (
                                 <Badge

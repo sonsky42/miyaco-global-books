@@ -1205,7 +1205,9 @@ function OperationsTab({
             Break-Even Analysis
           </CardTitle>
           <CardDescription>
-            Revenue needed to cover all expenses
+            Operating break-even: realized gross profit covers expenses when net
+            margin reaches zero. Unpaid credit is not profit. This is actual
+            cost-recovery performance, not a forecast sales target.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1222,17 +1224,20 @@ function OperationsTab({
                   color: "text-destructive",
                 },
                 {
-                  label: "Required Revenue",
+                  label: "Gross profit needed to cover expenses",
                   value: fmt(breakEven.requiredRevenue),
                   color: "text-amber-500",
                 },
                 {
-                  label: "Current Revenue",
+                  label: "Realized gross profit",
                   value: fmt(breakEven.currentRevenue),
                   color: "text-primary",
                 },
                 {
-                  label: breakEven.surplus >= 0 ? "Surplus" : "Deficit",
+                  label:
+                    breakEven.surplus >= 0
+                      ? "Net profit (above break-even)"
+                      : "Net loss (below break-even)",
                   value: fmt(Math.abs(breakEven.surplus)),
                   color:
                     breakEven.surplus >= 0

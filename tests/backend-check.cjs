@@ -21,6 +21,9 @@ const diagnostics = mo.check('main.mo');
 for (const d of diagnostics.filter(d => d.severity === 1)) console.log(JSON.stringify(d));
 if (diagnostics.some(d => d.severity === 1)) process.exit(1);
 console.log('Backend typecheck passed with Motoko ' + mo.version);
+if (process.argv.includes('--emit-did')) {
+  fs.writeFileSync(path.join(root, 'src/backend/dist/backend.did'), mo.candid('main.mo'));
+}
 if (process.argv.includes('--build')) {
   const compiled = mo.wasm('main.mo', 'ic');
   console.log('IC WebAssembly build passed: ' + compiled.wasm.length + ' bytes');

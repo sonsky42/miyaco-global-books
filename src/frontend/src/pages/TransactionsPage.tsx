@@ -57,6 +57,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Customer, InventoryItem, Transaction } from "../backend";
+import { TransactionLink, VoidedRecords } from "../components/LedgerControls";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddTransaction,
@@ -241,6 +242,7 @@ function TransactionCard({
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <TransactionLink transaction={transaction} />
             <p className="font-semibold truncate">{transaction.customerName}</p>
             {transaction.phone && (
               <span className="text-xs text-muted-foreground">
@@ -319,17 +321,12 @@ function TransactionCard({
               {transaction.paymentMethod}
             </p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setDeleteDialogOpen(true)}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            aria-label="Delete transaction"
-            data-ocid="transactions.delete_button"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {showCostPrice && (
+            <TransactionLink
+              transaction={transaction}
+              label="Edit / return / void"
+            />
+          )}
         </div>
       </div>
 
@@ -422,7 +419,12 @@ function ItemAutocomplete({
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
-          onSelectItem(inventoryItems.find((item) => item.name.toLowerCase() === e.target.value.trim().toLowerCase()) ?? null);
+          onSelectItem(
+            inventoryItems.find(
+              (item) =>
+                item.name.toLowerCase() === e.target.value.trim().toLowerCase(),
+            ) ?? null,
+          );
         }}
         onFocus={() => setOpen(true)}
         placeholder="Type item name…"
@@ -1029,7 +1031,7 @@ export default function TransactionsPage({ bookId }: TransactionsPageProps) {
     useGetTransactionsByType(bookId, "Credit Purchases");
   const { data: statistics } = useGetTransactionStatistics(bookId);
   const { data: bookSettings } = useGetBookSettings(bookId);
-  const { data: isAdmin = false } = useIsCallerAdmin();
+  const { data: isAdmin = false } = useIsCallerAdmin(bookId);
   const { data: _inventoryItems = [] } = useGetInventory(bookId);
   const deleteTransaction = useDeleteTransaction();
 
@@ -1037,8 +1039,7 @@ export default function TransactionsPage({ bookId }: TransactionsPageProps) {
   const baseCurrency = bookSettings?.baseCurrency ?? "NGN";
   const exchangeRate = bookSettings?.exchangeRate ?? 1;
   // Show cost price if: admin always sees it; non-admin sees it unless hidden
-  const showCostPrice =
-    isAdmin || !(bookSettings?.hideCostPricesFromNonAdmins ?? false);
+  const showCostPrice = isAdmin;
 
   const handleDelete = async (transactionId: string) => {
     try {
@@ -1072,7 +1073,7 @@ export default function TransactionsPage({ bookId }: TransactionsPageProps) {
     );
   }
 
-  const currencyDisplay = baseCurrency === "USD" ? "$" : "₦";
+  const currencyDisplay = "₦";
 
   return (
     <div className="space-y-6" data-ocid="transactions.page">
@@ -1143,39 +1144,43 @@ export default function TransactionsPage({ bookId }: TransactionsPageProps) {
             </CardContent>
           </Card>
 
-          <Card data-ocid="transactions.stats.purchases">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Purchases</CardTitle>
-              <TrendingDown className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {currencyDisplay}
-                {statistics.purchases.toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {purchasesTxs.length} transactions
-              </p>
-            </CardContent>
-          </Card>
+          {isAdmin && (
+            <Card data-ocid="transactions.stats.purchases">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Purchases</CardTitle>
+                <TrendingDown className="h-4 w-4 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">
+                  {currencyDisplay}
+                  {statistics.purchases.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {purchasesTxs.length} transactions
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card data-ocid="transactions.stats.credit-purchases">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Credit Purchases
-              </CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {currencyDisplay}
-                {statistics.creditPurchases.toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {creditPurchasesTxs.length} transactions
-              </p>
-            </CardContent>
-          </Card>
+          {isAdmin && (
+            <Card data-ocid="transactions.stats.credit-purchases">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Credit Purchases
+                </CardTitle>
+                <TrendingDown className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {currencyDisplay}
+                  {statistics.creditPurchases.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {creditPurchasesTxs.length} transactions
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -1199,20 +1204,24 @@ export default function TransactionsPage({ bookId }: TransactionsPageProps) {
           >
             Credit Sales ({creditSalesTxs.length})
           </TabsTrigger>
-          <TabsTrigger
-            value="purchases"
-            className="text-xs sm:text-sm py-2"
-            data-ocid="transactions.purchases.tab"
-          >
-            Purchases ({purchasesTxs.length})
-          </TabsTrigger>
-          <TabsTrigger
-            value="credit-purchases"
-            className="text-xs sm:text-sm py-2"
-            data-ocid="transactions.credit-purchases.tab"
-          >
-            Credit Purchases ({creditPurchasesTxs.length})
-          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger
+              value="purchases"
+              className="text-xs sm:text-sm py-2"
+              data-ocid="transactions.purchases.tab"
+            >
+              Purchases ({purchasesTxs.length})
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger
+              value="credit-purchases"
+              className="text-xs sm:text-sm py-2"
+              data-ocid="transactions.credit-purchases.tab"
+            >
+              Credit Purchases ({creditPurchasesTxs.length})
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="sales" className="mt-6">
@@ -1253,6 +1262,7 @@ export default function TransactionsPage({ bookId }: TransactionsPageProps) {
         </TabsContent>
       </Tabs>
 
+      <VoidedRecords bookId={bookId} />
       {/* Transaction Form Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
